@@ -1,0 +1,200 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-20"
+project: "auto-bmad"
+project_type: "greenfield"
+selected_track: "enterprise"
+field_type: "greenfield"
+workflow_path: "enterprise-greenfield"
+
+workflow_status:
+  # ============================================================================
+  # PHASE 1: ANALYSIS (OPTIONAL - USER SELECTED ALL)
+  # ============================================================================
+  phase_1_analysis:
+    phase_name: "Analysis (Discovery)"
+    phase_status: "in_progress"
+    last_updated: "2026-01-20"
+    workflows:
+      - id: "brainstorm-project"
+        name: "Brainstorm Project"
+        status: "completed"
+        completed_at: "2026-01-20"
+        output_file: "{output-folder}/analysis/brainstorming-session-2026-01-20.md"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:brainstorming"
+        exec: "{project-root}/_bmad/core/workflows/brainstorming/workflow.md"
+        description: "Creative exploration and ideation session"
+        output_expected: "{planning-artifacts}/brainstorm/*.md"
+        notes: "COMPLETED - 100 breakthrough ideas across 14 themes using First Principles Thinking."
+
+      - id: "research"
+        name: "Research"
+        status: "optional"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:research"
+        exec: "{project-root}/_bmad/bmm/workflows/1-analysis/research/workflow.md"
+        description: "Technical and competitive analysis"
+        output_expected: "{planning-artifacts}/research/*.md"
+        notes: "User selected to include this discovery workflow. Can have multiple research sessions."
+
+      - id: "product-brief"
+        name: "Product Brief"
+        status: "completed"
+        completed_at: "2026-01-20"
+        output_file: "{planning-artifacts}/product-brief-auto-bmad-2026-01-20.md"
+        agent: "analyst"
+        command: "/bmad:bmm:workflows:create-product-brief"
+        exec: "{project-root}/_bmad/bmm/workflows/1-analysis/create-product-brief/workflow.md"
+        description: "Strategic product planning document"
+        output_expected: "{planning-artifacts}/product-brief.md"
+        notes: "COMPLETED - Comprehensive product brief with vision, users, metrics, and MVP scope."
+
+  # ============================================================================
+  # PHASE 2: PLANNING
+  # ============================================================================
+  phase_2_planning:
+    phase_name: "Planning"
+    phase_status: "pending"
+    workflows:
+      - id: "prd"
+        name: "Product Requirements Document"
+        status: "required"
+        agent: "pm"
+        command: "/bmad:bmm:workflows:create-prd"
+        exec: "{project-root}/_bmad/bmm/workflows/2-plan-workflows/prd/workflow.md"
+        description: "Complete PRD with Functional and Non-Functional Requirements"
+        output_expected: "{planning-artifacts}/prd/"
+        prerequisites: ["phase_1_analysis (if included)"]
+        notes: "Core planning document - foundation for all subsequent work"
+
+      - id: "create-ux-design"
+        name: "UX Design"
+        status: "conditional"
+        agent: "ux-designer"
+        command: "/bmad:bmm:workflows:create-ux-design"
+        exec: "{project-root}/_bmad/bmm/workflows/2-plan-workflows/create-ux-design/workflow.md"
+        description: "User experience and interface design"
+        output_expected: "{planning-artifacts}/ux-design/"
+        prerequisites: ["prd"]
+        condition: "if_has_ui"
+        notes: "Required if project has user interface. Determined after PRD."
+
+  # ============================================================================
+  # PHASE 3: SOLUTIONING
+  # ============================================================================
+  phase_3_solutioning:
+    phase_name: "Solutioning"
+    phase_status: "pending"
+    workflows:
+      - id: "create-architecture"
+        name: "System Architecture"
+        status: "required"
+        agent: "architect"
+        command: "/bmad:bmm:workflows:create-architecture"
+        exec: "{project-root}/_bmad/bmm/workflows/3-solutioning/create-architecture/workflow.md"
+        description: "Complete system architecture with components, data flow, and technical decisions"
+        output_expected: "{planning-artifacts}/architecture/"
+        prerequisites: ["prd", "ux-design (if applicable)"]
+        notes: "Enterprise Method includes security architecture, DevOps considerations, and scalability planning"
+
+      - id: "create-epics-and-stories"
+        name: "Epics and Stories"
+        status: "required"
+        agent: "pm"
+        command: "/bmad:bmm:workflows:create-epics-and-stories"
+        exec: "{project-root}/_bmad/bmm/workflows/3-solutioning/create-epics-and-stories/workflow.md"
+        description: "Break down PRD into implementable epics and user stories"
+        output_expected: "{planning-artifacts}/epics/"
+        prerequisites: ["prd", "create-architecture", "ux-design (if applicable)"]
+        notes: "Uses full context: PRD + Architecture + UX for comprehensive story breakdown"
+
+      - id: "test-design"
+        name: "Test Design & Strategy"
+        status: "optional"
+        agent: "tea"
+        command: "/bmad:bmm:workflows:test-design"
+        workflow: "{project-root}/_bmad/bmm/workflows/testarch/test-design/workflow.yaml"
+        description: "System-level testability review and test strategy"
+        output_expected: "{planning-artifacts}/test-design/"
+        prerequisites: ["create-architecture"]
+        notes: "Enterprise Method addition - testability assessment before implementation"
+
+      - id: "implementation-readiness"
+        name: "Implementation Readiness Check"
+        status: "required"
+        agent: "architect"
+        command: "/bmad:bmm:workflows:implementation-readiness"
+        exec: "{project-root}/_bmad/bmm/workflows/3-solutioning/check-implementation-readiness/workflow.md"
+        description: "Validate all planning artifacts are complete and consistent"
+        output_expected: "validation-report"
+        prerequisites: ["prd", "create-architecture", "create-epics-and-stories"]
+        notes: "Gate check before moving to implementation. Validates PRD + Architecture + Epics + UX (if applicable)"
+
+  # ============================================================================
+  # PHASE 4: IMPLEMENTATION
+  # ============================================================================
+  phase_4_implementation:
+    phase_name: "Implementation"
+    phase_status: "pending"
+    workflows:
+      - id: "sprint-planning"
+        name: "Sprint Planning"
+        status: "required"
+        agent: "sm"
+        command: "/bmad:bmm:workflows:sprint-planning"
+        workflow: "{project-root}/_bmad/bmm/workflows/4-implementation/sprint-planning/workflow.yaml"
+        description: "Create first sprint plan and establish sprint cadence"
+        output_expected: "{implementation-artifacts}/sprint-status.yaml"
+        prerequisites: ["implementation-readiness"]
+        notes: "Creates sprint-status.yaml - subsequent implementation tracked there. After this, use Scrum Master agent for sprint management."
+
+# ============================================================================
+# ENTERPRISE METHOD FEATURES
+# ============================================================================
+enterprise_features:
+  security:
+    integrated_in: ["create-architecture", "prd (NFRs)"]
+    description: "Security considerations integrated throughout planning"
+  
+  devops:
+    integrated_in: ["create-architecture", "test-design"]
+    description: "DevOps and CI/CD planning integrated in architecture"
+  
+  testing:
+    dedicated_workflows: ["test-design"]
+    integrated_in: ["create-architecture", "implementation-readiness"]
+    description: "Comprehensive test strategy and testability review"
+
+# ============================================================================
+# WORKFLOW METADATA
+# ============================================================================
+metadata:
+  total_phases: 4
+  discovery_workflows: 3
+  required_workflows: 6
+  optional_workflows: 2
+  conditional_workflows: 1
+  estimated_completion_time: "4-6 weeks (depending on project complexity)"
+  
+notes:
+  - "Discovery phase (Phase 1) is user-selected and optional"
+  - "Enterprise Method includes security, DevOps, and testing considerations"
+  - "UX Design is conditional - required only if project has user interface"
+  - "Implementation phase transitions to sprint-status.yaml after sprint-planning"
+  - "Each workflow builds upon previous work - maintain sequence for best results"
