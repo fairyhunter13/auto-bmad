@@ -10,6 +10,11 @@ inputDocuments:
 workflowType: ux-design
 status: complete
 completedAt: 2026-01-21
+adversarialReviewDate: 2026-01-22
+criticalIssuesAddressed:
+  - infrastructure-failure-handling
+  - yellow-flag-timeout-policy
+  - data-persistence-strategy
 ---
 
 # UX Design Specification: Auto-BMAD
@@ -2872,9 +2877,482 @@ const openModal = () => {
 
 ---
 
+## System Resilience & Recovery UX
+
+### Critical Issue #1: Infrastructure Failure Handling
+
+Auto-BMAD's "walk away confidence" depends on the system detecting and gracefully handling its own infrastructure failures. Users must trust that if something breaks while they're away, they'll return to an honest explanation—not a frozen, ambiguous state.
+
+#### Failure Categories & Detection
+
+| Failure Type | Detection Method | User Impact | Response Time |
+|--------------|------------------|-------------|---------------|
+| **OpenCode Process Crash** | Process exit code monitoring, heartbeat timeout (30s) | Journey stops unexpectedly | < 1 minute detection |
+| **AI Provider Timeout** | HTTP timeout (120s default), connection refused | Workflow stalls | Immediate detection |
+| **AI Provider Rate Limit** | 429 response code, retry-after headers | Workflow pauses | Immediate detection |
+| **Network Connectivity Loss** | Periodic connectivity check (10s interval) | Cloud providers unavailable | < 15 seconds detection |
+| **Out of Memory (OOM)** | Process killed by OS, exit code 137 | Journey terminates | < 1 minute detection |
+| **Disk Space Exhaustion** | Pre-flight check, write failure detection | Checkpoint/artifact failure | Immediate on write |
+
+#### System Health Monitoring
+
+**Watchdog Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  AUTO-BMAD WATCHDOG (Golang Daemon)                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Monitors:                                                          │
+│  ├── OpenCode Process Health (heartbeat every 10s)                  │
+│  ├── Network Connectivity (ping every 10s)                          │
+│  ├── System Resources (memory, disk every 30s)                      │
+│  └── Journey State Consistency (every 60s)                          │
+│                                                                     │
+│  On Failure Detection:                                              │
+│  ├── Log failure with timestamp and context                         │
+│  ├── Attempt graceful recovery (if possible)                        │
+│  ├── Update journey state to appropriate failure status             │
+│  ├── Send desktop notification to user                              │
+│  └── Preserve last known good state for recovery                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Failure State UX
+
+**Infrastructure Failure Panel (Distinct from Workflow Failure):**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  ⚠️ SYSTEM ISSUE DETECTED                                        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Journey: Greenfield MVP                                         │
+│  Phase: Solutioning → Workflow: create-architecture              │
+│                                                                  │
+│  ────────────────────────────────────────────────────────────    │
+│                                                                  │
+│  💻 WHAT HAPPENED:                                               │
+│  "The AI process stopped unexpectedly. This is a system issue,   │
+│   not a problem with your project or workflow."                  │
+│                                                                  │
+│  🔍 TECHNICAL DETAILS:                                           │
+│  OpenCode process exited (code 137: Out of memory)               │
+│  Last checkpoint: architecture-draft-v2 (12 minutes ago)         │
+│                                                                  │
+│  🛠️ RECOVERY OPTIONS:                                            │
+│  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐       │
+│  │ 🔄 Retry Now   │ │ ⏰ Retry in    │ │ 📋 View Logs   │       │
+│  │ Resume from    │ │ 5 minutes      │ │                │       │
+│  │ checkpoint     │ │ (auto-retry)   │ │                │       │
+│  └────────────────┘ └────────────────┘ └────────────────┘       │
+│                                                                  │
+│  💡 TIP: If this keeps happening, try using a local AI           │
+│     provider (Ollama) or reducing concurrent journeys.           │
+│                                                                  │
+│  [Report Issue]                    [Dismiss & Archive Journey]   │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Key UX Principles for Infrastructure Failures:**
+
+1. **Distinguish from Workflow Failures:** Use ⚠️ (warning) instead of 🔴 (error) to indicate "system issue" vs "workflow problem"
+2. **No Blame:** Clearly state this is NOT the user's fault or a project issue
+3. **Technical Details Available:** Power users can see exit codes, but default message is human-readable
+4. **Checkpoint Visibility:** Always show when last checkpoint was created
+5. **Auto-Retry Option:** Offer scheduled retry (with countdown) for transient failures
+6. **Prevention Tips:** Contextual advice based on failure type
+
+#### Network Connectivity UX
+
+**Status Bar Network Indicator:**
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  🟢 Running • create-architecture • 12m elapsed • 🌐 claude-sonnet    │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  🟡 Paused • create-architecture • 12m elapsed • ⚠️ Network offline   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Network Loss Mid-Journey Behavior:**
+
+| Scenario | System Behavior | User Notification |
+|----------|-----------------|-------------------|
+| **Network lost (cloud provider)** | Pause journey, preserve state, start connectivity polling | Toast: "Network offline - journey paused" |
+| **Network restored (< 5 min)** | Auto-resume from last state | Toast: "Network restored - resuming journey" |
+| **Network restored (> 5 min)** | Show recovery prompt, don't auto-resume | Modal: "Network back - resume journey?" |
+| **Local provider (Ollama)** | Continue unaffected | No notification |
+
+**Offline Mode Indicator:**
+
+When network is unavailable:
+- Status bar shows ⚠️ icon with "Network offline" text
+- Cloud-dependent journeys show "Paused - Waiting for network"
+- Local provider journeys show "Running (offline mode)"
+- Journey start wizard shows which destinations are available offline
+
+---
+
+### Critical Issue #2: Yellow Flag Timeout Policy
+
+Yellow flags request user input to continue a journey. Without a clear timeout policy, journeys could remain paused indefinitely, consuming resources and creating stale states.
+
+#### Yellow Flag Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: Yellow flag raised
+    Active --> Responded: User provides input (< 30s target)
+    Active --> Waiting: User doesn't respond immediately
+    Waiting --> Responded: User responds later
+    Waiting --> Escalated: Timeout threshold reached
+    Escalated --> Responded: User responds after escalation
+    Escalated --> AutoResolved: AI decides (if allowed)
+    Escalated --> Abandoned: Max timeout exceeded
+    Responded --> [*]: Journey continues
+    AutoResolved --> [*]: Journey continues with AI decision
+    Abandoned --> [*]: Journey archived as incomplete
+```
+
+#### Timeout Thresholds
+
+| Threshold | Duration | System Behavior | User Notification |
+|-----------|----------|-----------------|-------------------|
+| **Reminder** | 30 minutes | Send follow-up notification | Desktop notification: "Journey still waiting for input" |
+| **Escalation** | 4 hours | Offer AI auto-decision option | Desktop notification + in-app banner |
+| **Warning** | 24 hours | Warn about pending auto-archive | Desktop notification: "Journey will auto-archive in 24h" |
+| **Auto-Archive** | 48 hours | Archive journey with "abandoned" status | Desktop notification: "Journey archived - no response" |
+
+**User-Configurable Settings:**
+
+| Setting | Default | Range | Location |
+|---------|---------|-------|----------|
+| Reminder interval | 30 min | 15 min - 4 hours | Settings > Notifications |
+| Auto-archive timeout | 48 hours | 12 hours - 7 days | Settings > Journey Behavior |
+| Allow AI auto-decision | Off | On/Off | Per-journey or global |
+| Auto-archive behavior | Archive | Archive / Pause Indefinitely | Settings > Journey Behavior |
+
+#### Escalation UI
+
+**After 4 Hours - Escalation Banner:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🟡 WAITING FOR 4+ HOURS                                         │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Journey "Greenfield MVP" has been waiting for your input        │
+│  since 10:30 AM (4 hours ago).                                   │
+│                                                                  │
+│  OPTIONS:                                                        │
+│  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐       │
+│  │ 📝 Respond Now │ │ 🤖 Let AI      │ │ ⏸️ Pause       │       │
+│  │                │ │ Decide         │ │ Journey        │       │
+│  └────────────────┘ └────────────────┘ └────────────────┘       │
+│                                                                  │
+│  ⏰ Auto-archive in: 44 hours                    [Snooze 1 hour] │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**"Let AI Decide" Confirmation:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🤖 LET AI DECIDE                                                │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  The AI will make a reasonable decision based on:                │
+│  • Your PRD and existing artifacts                               │
+│  • Common patterns for this type of question                     │
+│  • Context from previous decisions in this journey               │
+│                                                                  │
+│  📋 Original Question:                                           │
+│  "Which database approach for user data storage?"                │
+│                                                                  │
+│  🤖 AI's Likely Decision:                                        │
+│  "SQLite for MVP (simpler setup, matches solo dev context)"      │
+│                                                                  │
+│  ⚠️ You can always review and modify this decision later         │
+│     in the generated artifacts.                                  │
+│                                                                  │
+│                    [Cancel]  [Accept AI Decision]                │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Abandoned Journey Recovery
+
+When a journey is auto-archived due to timeout:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  📦 ARCHIVED: Greenfield MVP                                     │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Status: Abandoned (no response for 48 hours)                    │
+│  Archived: 2026-01-22 at 3:30 PM                                 │
+│  Last checkpoint: architecture-draft-v2                          │
+│                                                                  │
+│  Unanswered Question:                                            │
+│  "Which database approach for user data storage?"                │
+│                                                                  │
+│  RECOVERY OPTIONS:                                               │
+│  ┌────────────────┐ ┌────────────────┐                          │
+│  │ 🔄 Restore &   │ │ 🗑️ Delete      │                          │
+│  │ Resume         │ │ Permanently    │                          │
+│  └────────────────┘ └────────────────┘                          │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Critical Issue #3: Data Persistence & Checkpoint Strategy
+
+Users must understand where their work is saved and trust that checkpoints provide reliable recovery points. This is foundational to "walk away confidence."
+
+#### Data Storage Architecture
+
+**Storage Locations:**
+
+| Data Type | Storage Location | Format | Backup Strategy |
+|-----------|------------------|--------|-----------------|
+| **Journey State** | `~/.auto-bmad/journeys/` | SQLite database | Auto-backup on journey start |
+| **Journey Logs** | `~/.auto-bmad/logs/{journey-id}/` | JSON lines (.jsonl) | Rolling 30-day retention |
+| **User Preferences** | `~/.auto-bmad/config.json` | JSON | Manual export available |
+| **BMAD Artifacts** | `{project}/_bmad-output/` | Markdown files | Git-managed (user's repo) |
+| **Git Checkpoints** | `{project}/.git/` | Git commits | Part of user's repo |
+
+**SQLite Journey Database Schema (Conceptual):**
+
+```sql
+-- Journey tracking
+CREATE TABLE journeys (
+  id TEXT PRIMARY KEY,
+  project_path TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  status TEXT NOT NULL,  -- running, paused, yellow_flag, complete, failed, archived
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  current_workflow TEXT,
+  current_phase TEXT,
+  checkpoint_count INTEGER DEFAULT 0
+);
+
+-- Yellow flag tracking
+CREATE TABLE yellow_flags (
+  id TEXT PRIMARY KEY,
+  journey_id TEXT REFERENCES journeys(id),
+  question TEXT NOT NULL,
+  context TEXT,
+  response TEXT,
+  created_at TIMESTAMP,
+  responded_at TIMESTAMP,
+  timeout_at TIMESTAMP
+);
+
+-- Checkpoint tracking
+CREATE TABLE checkpoints (
+  id TEXT PRIMARY KEY,
+  journey_id TEXT REFERENCES journeys(id),
+  git_commit_sha TEXT,
+  workflow_id TEXT,
+  phase TEXT,
+  created_at TIMESTAMP,
+  description TEXT
+);
+```
+
+#### Checkpoint Strategy
+
+**What is a Checkpoint?**
+
+A checkpoint is a recoverable state consisting of:
+1. Git commit of all BMAD artifacts at that point
+2. Journey state snapshot in SQLite
+3. OpenCode conversation context (if resumable)
+
+**When Checkpoints Are Created:**
+
+| Trigger | Checkpoint Name Pattern | Git Commit Message |
+|---------|-------------------------|-------------------|
+| **Workflow completion** | `{workflow}-complete` | `[auto-bmad] Complete: {workflow}` |
+| **Phase transition** | `phase-{n}-complete` | `[auto-bmad] Phase {n} complete` |
+| **Before yellow flag** | `pre-yellow-{timestamp}` | `[auto-bmad] Checkpoint before user input` |
+| **User-triggered** | `manual-{timestamp}` | `[auto-bmad] Manual checkpoint` |
+| **Before risky operation** | `pre-{operation}` | `[auto-bmad] Checkpoint before {operation}` |
+
+**Checkpoint Visibility in UI:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  📍 JOURNEY CHECKPOINTS                                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ● prd-complete              Today, 10:30 AM        [Restore]   │
+│  │ PRD document generated successfully                          │
+│  │                                                               │
+│  ● ux-design-complete        Today, 11:45 AM        [Restore]   │
+│  │ UX specification complete                                    │
+│  │                                                               │
+│  ● pre-yellow-1705934400     Today, 2:15 PM         [Restore]   │
+│  │ Before: "Which database approach?"                           │
+│  │                                                               │
+│  ◉ architecture-draft-v2     Today, 2:30 PM         [Current]   │
+│    Architecture in progress                                     │
+│                                                                  │
+│  [Create Manual Checkpoint]                                      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Restore/Rollback UX
+
+**Restore Confirmation Dialog:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🔄 RESTORE TO CHECKPOINT                                        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Restore journey to: prd-complete (Today, 10:30 AM)              │
+│                                                                  │
+│  ⚠️ THIS WILL:                                                   │
+│  • Revert BMAD artifacts to checkpoint state (git reset)         │
+│  • Discard progress after this checkpoint                        │
+│  • Reset journey to PRD phase                                    │
+│                                                                  │
+│  📁 FILES AFFECTED:                                              │
+│  • _bmad-output/planning-artifacts/ux-design-specification.md    │
+│  • _bmad-output/planning-artifacts/architecture.md (partial)     │
+│                                                                  │
+│  💾 SAFETY: A backup branch will be created before restore:      │
+│     auto-bmad-backup-2026-01-22-1430                            │
+│                                                                  │
+│                    [Cancel]  [Restore to Checkpoint]             │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Restore Safety Measures:**
+
+1. **Backup Branch:** Always create a backup branch before any restore operation
+2. **Diff Preview:** Show exactly which files will change before confirming
+3. **Undo Window:** 5-minute "undo restore" option after restoration
+4. **No Data Loss:** Original state always recoverable via backup branch
+
+#### Data Migration & Upgrades
+
+**Version Upgrade Flow:**
+
+```mermaid
+flowchart TD
+    A[Auto-BMAD Update Detected] --> B{Breaking schema change?}
+    B -->|No| C[Apply update, migrate in background]
+    B -->|Yes| D[Show migration dialog]
+    
+    D --> E[Backup current data]
+    E --> F[Show migration progress]
+    F --> G{Migration successful?}
+    
+    G -->|Yes| H[Update complete, show changelog]
+    G -->|No| I[Rollback to backup]
+    I --> J[Show error, offer manual steps]
+    
+    C --> H
+```
+
+**Migration Dialog:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🔄 AUTO-BMAD UPDATE                                             │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Version 1.2.0 includes database improvements.                   │
+│                                                                  │
+│  Your data will be automatically migrated:                       │
+│  • 3 journeys                                                    │
+│  • 12 checkpoints                                                │
+│  • 47 log entries                                                │
+│                                                                  │
+│  ████████████████░░░░░░░░  65%                                  │
+│  Migrating checkpoints...                                        │
+│                                                                  │
+│  💾 Backup created: ~/.auto-bmad/backups/pre-1.2.0/             │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Backup & Export
+
+**Manual Backup Options:**
+
+| Action | What's Included | Format | Location |
+|--------|-----------------|--------|----------|
+| **Export Journey** | Single journey state + logs | JSON | User-specified |
+| **Export All Data** | All journeys, preferences, logs | ZIP archive | User-specified |
+| **Auto-Backup** | Journey database | SQLite copy | `~/.auto-bmad/backups/` |
+
+**Export Journey UI:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  📤 EXPORT JOURNEY                                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Journey: Greenfield MVP                                         │
+│                                                                  │
+│  INCLUDE:                                                        │
+│  ☑️ Journey state and configuration                              │
+│  ☑️ All checkpoints                                              │
+│  ☑️ Journey logs                                                 │
+│  ☐ BMAD artifacts (already in your git repo)                    │
+│                                                                  │
+│  Export format: [JSON ▾]                                         │
+│                                                                  │
+│  Estimated size: 2.4 MB                                          │
+│                                                                  │
+│                    [Cancel]  [Export]                            │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Auto-Backup Schedule:**
+
+| Trigger | Backup Type | Retention |
+|---------|-------------|-----------|
+| Daily (midnight) | Full database | 7 days |
+| Before journey start | Incremental | Until journey complete |
+| Before restore/rollback | Full database | 30 days |
+| Before app update | Full database + config | 90 days |
+
+---
+
+## Adversarial Review Findings Addressed
+
+This UX Design Specification has been updated to address critical findings from adversarial review conducted on 2026-01-22:
+
+| Finding | Status | Section Added |
+|---------|--------|---------------|
+| #1 Infrastructure Failure Handling | ✅ Addressed | System Resilience: Critical Issue #1 |
+| #3 Yellow Flag Timeout Policy | ✅ Addressed | System Resilience: Critical Issue #2 |
+| #7 Data Persistence Strategy | ✅ Addressed | System Resilience: Critical Issue #3 |
+
+**Remaining Findings (Non-Critical):** 11 additional findings documented for implementation phase consideration. See adversarial review report for full details.
+
+---
+
 ## Document Complete
 
-**UX Design Specification Status:** ✅ Complete
+**UX Design Specification Status:** ✅ Complete (Updated with Critical Resilience Sections)
 
 **All 14 Steps Completed:**
 1. ✅ Initialization
