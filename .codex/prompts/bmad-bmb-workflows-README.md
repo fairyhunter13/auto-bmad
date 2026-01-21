@@ -3,15 +3,15 @@
 ## Available Workflows in bmb
 
 **agent**
-- Path: `_bmad/bmb/workflows/agent/workflow.md`
+- Path: `undefined`
 - Tri-modal workflow for creating, editing, and validating BMAD Core compliant agents
 
 **module**
-- Path: `_bmad/bmb/workflows/module/workflow.md`
+- Path: `undefined`
 - Quad-modal workflow for creating BMAD modules (Brief + Create + Edit + Validate)
 
 **workflow**
-- Path: `_bmad/bmb/workflows/workflow/workflow.md`
+- Path: `undefined`
 - Create structured standalone workflows using markdown-based step architecture (tri-modal: create, validate, edit)
 
 

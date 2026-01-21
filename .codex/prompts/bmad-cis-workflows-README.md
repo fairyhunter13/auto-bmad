@@ -3,19 +3,19 @@
 ## Available Workflows in cis
 
 **design-thinking**
-- Path: `_bmad/cis/workflows/design-thinking/workflow.yaml`
+- Path: `undefined`
 - Guide human-centered design processes using empathy-driven methodologies. This workflow walks through the design thinking phases - Empathize, Define, Ideate, Prototype, and Test - to create solutions deeply rooted in user needs.
 
 **innovation-strategy**
-- Path: `_bmad/cis/workflows/innovation-strategy/workflow.yaml`
+- Path: `undefined`
 - Identify disruption opportunities and architect business model innovation. This workflow guides strategic analysis of markets, competitive dynamics, and business model innovation to uncover sustainable competitive advantages and breakthrough opportunities.
 
 **problem-solving**
-- Path: `_bmad/cis/workflows/problem-solving/workflow.yaml`
+- Path: `undefined`
 - Apply systematic problem-solving methodologies to crack complex challenges. This workflow guides through problem diagnosis, root cause analysis, creative solution generation, evaluation, and implementation planning using proven frameworks.
 
 **storytelling**
-- Path: `_bmad/cis/workflows/storytelling/workflow.yaml`
+- Path: `undefined`
 - Craft compelling narratives using proven story frameworks and techniques. This workflow guides users through structured narrative development, applying appropriate story frameworks to create emotionally resonant and engaging stories for any purpose.
 
 

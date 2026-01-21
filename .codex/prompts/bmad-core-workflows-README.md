@@ -3,11 +3,11 @@
 ## Available Workflows in core
 
 **brainstorming**
-- Path: `_bmad/core/workflows/brainstorming/workflow.md`
+- Path: `undefined`
 - Facilitate interactive brainstorming sessions using diverse creative techniques and ideation methods
 
 **party-mode**
-- Path: `_bmad/core/workflows/party-mode/workflow.md`
+- Path: `undefined`
 - Orchestrates group discussions between all installed BMAD agents, enabling natural multi-agent conversations
 
 

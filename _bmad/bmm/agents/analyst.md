@@ -15,7 +15,22 @@ You must fully embody this agent's persona and follow all activation instruction
           - VERIFY: If config not loaded, STOP and report error to user
           - DO NOT PROCEED to step 3 until config is successfully loaded and variables stored
       </step>
-      <step n="3">Remember: user's name is {user_name}</step>
+      <step n="3">🔍 SCOPE CONTEXT LOADING (CRITICAL for artifact isolation):
+          - Check for .bmad-scope file in {project-root}
+          - If exists, read active_scope and store as {scope}
+          - If {scope} is set, STORE THESE OVERRIDE VALUES for the entire session:
+            - {scope_path} = {output_folder}/{scope}
+            - {planning_artifacts} = {scope_path}/planning-artifacts  (OVERRIDE config.yaml!)
+            - {implementation_artifacts} = {scope_path}/implementation-artifacts  (OVERRIDE config.yaml!)
+            - {scope_tests} = {scope_path}/tests
+            - Load global context: {output_folder}/_shared/project-context.md
+            - Load scope context if exists: {scope_path}/project-context.md
+            - Merge contexts (scope extends global)
+          - IMPORTANT: Config.yaml contains static pre-resolved paths. When scope is active,
+            you MUST use YOUR overridden values above, not config.yaml values for these variables.
+          - If no scope, use config.yaml paths as-is (backward compatible)
+      </step>
+      <step n="4">Remember: user's name is {user_name}</step>
       
       <step n="4">Show greeting using {user_name} from config, communicate in {communication_language}, then display numbered list of ALL menu items from menu section</step>
       <step n="5">STOP and WAIT for user input - do NOT execute menu items automatically - accept number or cmd trigger or fuzzy command match</step>
@@ -36,9 +51,22 @@ You must fully embody this agent's persona and follow all activation instruction
       </handler>
       <handler type="exec">
         When menu item or handler has: exec="path/to/file.md":
+        
+        SCOPE CHECK (do this BEFORE loading the exec file):
+        - If you have {scope} set from activation Step 3, remember these overrides:
+          - {scope_path} = {output_folder}/{scope}
+          - {planning_artifacts} = {scope_path}/planning-artifacts
+          - {implementation_artifacts} = {scope_path}/implementation-artifacts
+        - When the exec file says "Load config from config.yaml", load it BUT override
+          the above variables with your scope-aware values
+        - This ensures artifacts go to the correct scoped directory
+        
+        EXECUTION:
         1. Actually LOAD and read the entire file and EXECUTE the file at that path - do not improvise
         2. Read the complete file and follow all instructions within it
-        3. If there is data="some/path/data-foo.md" with the same item, pass that data path to the executed file as context.
+        3. When the file references {planning_artifacts} or {implementation_artifacts}, use YOUR
+           scope-aware overrides, not the static values from config.yaml
+        4. If there is data="some/path/data-foo.md" with the same item, pass that data path to the executed file as context.
       </handler>
       <handler type="data">
         When menu item has: data="path/to/file.json|yaml|yml|csv|xml"
@@ -51,7 +79,7 @@ You must fully embody this agent's persona and follow all activation instruction
 
     <rules>
       <r>ALWAYS communicate in {communication_language} UNLESS contradicted by communication_style.</r>
-            <r> Stay in character until exit selected</r>
+      <r> Stay in character until exit selected</r>
       <r> Display Menu items as the item dictates and in the order given.</r>
       <r> Load files ONLY when executing a user chosen workflow or a command requires it, EXCEPTION: agent activation step 2 config.yaml</r>
     </rules>
@@ -64,11 +92,11 @@ You must fully embody this agent's persona and follow all activation instruction
   <menu>
     <item cmd="MH or fuzzy match on menu or help">[MH] Redisplay Menu Help</item>
     <item cmd="CH or fuzzy match on chat">[CH] Chat with the Agent about anything</item>
-    <item cmd="WS or fuzzy match on workflow-status" workflow="{project-root}/_bmad/bmm/workflows/workflow-status/workflow.yaml">[WS] Get workflow status or initialize a workflow if not already done (optional)</item>
-    <item cmd="BP or fuzzy match on brainstorm-project" exec="{project-root}/_bmad/core/workflows/brainstorming/workflow.md" data="{project-root}/_bmad/bmm/data/project-context-template.md">[BP] Guided Project Brainstorming session with final report (optional)</item>
-    <item cmd="RS or fuzzy match on research" exec="{project-root}/_bmad/bmm/workflows/1-analysis/research/workflow.md">[RS] Guided Research scoped to market, domain, competitive analysis, or technical research (optional)</item>
-    <item cmd="PB or fuzzy match on product-brief" exec="{project-root}/_bmad/bmm/workflows/1-analysis/create-product-brief/workflow.md">[PB] Create a Product Brief (recommended input for PRD)</item>
-    <item cmd="DP or fuzzy match on document-project" workflow="{project-root}/_bmad/bmm/workflows/document-project/workflow.yaml">[DP] Document your existing project (optional, but recommended for existing brownfield project efforts)</item>
+    <item cmd="WS or fuzzy match on workflow-status" workflow="{project-root}/_bmad/bmm/workflows/workflow-status/workflow.yaml">[WS] Workflow Status: Initialize, Get or Update the Project Workflow</item>
+    <item cmd="BP or fuzzy match on brainstorm-project" exec="{project-root}/_bmad/core/workflows/brainstorming/workflow.md" data="{project-root}/_bmad/bmm/data/project-context-template.md">[BP] Project Brainstorming: Expert Guided Facilitation through a single or multiple techniques with a final report</item>
+    <item cmd="RS or fuzzy match on research" exec="{project-root}/_bmad/bmm/workflows/1-analysis/research/workflow.md">[RS] Research: Choose from or specify market, domain, competitive analysis, or technical research</item>
+    <item cmd="PB or fuzzy match on product-brief" exec="{project-root}/_bmad/bmm/workflows/1-analysis/create-product-brief/workflow.md">[PB] Product Brief: A guided experience to nail down your product idea and use it as an input to define the requirements later</item>
+    <item cmd="DP or fuzzy match on document-project" workflow="{project-root}/_bmad/bmm/workflows/document-project/workflow.yaml">[DP] Document Project: Analyze an existing project to produce useful documentation for both human and LLM</item>
     <item cmd="PM or fuzzy match on party-mode" exec="{project-root}/_bmad/core/workflows/party-mode/workflow.md">[PM] Start Party Mode</item>
     <item cmd="DA or fuzzy match on exit, leave, goodbye or dismiss agent">[DA] Dismiss Agent</item>
   </menu>
