@@ -2,6 +2,7 @@ const path = require('node:path');
 const fs = require('fs-extra');
 const yaml = require('yaml');
 const { ScopeValidator } = require('./scope-validator');
+const { ScopeInitializer } = require('./scope-initializer');
 
 /**
  * Manages scope lifecycle and CRUD operations
@@ -25,6 +26,7 @@ class ScopeManager {
     this.scopesFilePath = options.scopesFilePath || path.join(this.configPath, 'scopes.yaml');
 
     this.validator = new ScopeValidator();
+    this.initializer = new ScopeInitializer({ projectRoot: this.projectRoot });
     this._config = null; // Cached configuration
   }
 
@@ -38,6 +40,7 @@ class ScopeManager {
     this.configPath = path.join(this.bmadPath, '_config');
     this.scopesFilePath = path.join(this.configPath, 'scopes.yaml');
     this._config = null; // Clear cache
+    this.initializer.setProjectRoot(projectRoot);
   }
 
   /**
@@ -58,6 +61,9 @@ class ScopeManager {
         const defaultConfig = this.validator.createDefaultConfig();
         await this.saveConfig(defaultConfig);
       }
+
+      // Initialize scope system directories (_shared, _events)
+      await this.initializer.initializeScopeSystem();
 
       // Load and validate configuration
       const config = await this.loadConfig();
@@ -239,6 +245,9 @@ class ScopeManager {
       // Save configuration
       await this.saveConfig(config);
 
+      // Create scope directory structure
+      await this.initializer.initializeScope(scopeId, options);
+
       return scope;
     } catch (error) {
       throw new Error(`Failed to create scope '${scopeId}': ${error.message}`);
@@ -311,7 +320,7 @@ class ScopeManager {
       }
 
       // Check if other scopes depend on this one
-      const dependentScopes = this.findDependentScopes(scopeId, config.scopes);
+      const dependentScopes = this.findDependentScopesSync(scopeId, config.scopes);
       if (dependentScopes.length > 0 && !options.force) {
         throw new Error(
           `Cannot remove scope '${scopeId}'. The following scopes depend on it: ${dependentScopes.join(', ')}. Use force option to remove anyway.`,
@@ -396,7 +405,7 @@ class ScopeManager {
       const tree = {
         scope: scopeId,
         dependencies: [],
-        dependents: this.findDependentScopes(scopeId, config.scopes),
+        dependents: this.findDependentScopesSync(scopeId, config.scopes),
       };
 
       // Build dependency tree recursively
@@ -422,10 +431,34 @@ class ScopeManager {
   /**
    * Find scopes that depend on a given scope
    * @param {string} scopeId - The scope ID
-   * @param {object} allScopes - All scopes object
+   * @param {object} allScopes - All scopes object (optional, will load if not provided)
+   * @returns {Promise<string[]>|string[]} Array of dependent scope IDs
+   */
+  async findDependentScopes(scopeId, allScopes = null) {
+    // If allScopes not provided, load from config
+    if (!allScopes) {
+      const config = await this.loadConfig();
+      allScopes = config.scopes || {};
+    }
+
+    const dependents = [];
+
+    for (const [sid, scope] of Object.entries(allScopes)) {
+      if (scope.dependencies && scope.dependencies.includes(scopeId)) {
+        dependents.push(sid);
+      }
+    }
+
+    return dependents;
+  }
+
+  /**
+   * Find scopes that depend on a given scope (synchronous version)
+   * @param {string} scopeId - The scope ID
+   * @param {object} allScopes - All scopes object (required)
    * @returns {string[]} Array of dependent scope IDs
    */
-  findDependentScopes(scopeId, allScopes) {
+  findDependentScopesSync(scopeId, allScopes) {
     const dependents = [];
 
     for (const [sid, scope] of Object.entries(allScopes)) {
