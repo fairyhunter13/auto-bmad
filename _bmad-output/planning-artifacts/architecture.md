@@ -11,6 +11,9 @@ user_name: 'Hafiz'
 date: '2026-01-21'
 status: 'complete'
 completedAt: '2026-01-21'
+lastReviewed: '2026-01-22'
+reviewType: 'adversarial'
+resilienceSectionsAdded: true
 ---
 
 # Architecture Decision Document
@@ -318,6 +321,902 @@ Exit Code ≠ 0? → Step Failed → Capture error → Allow retry
     │ OpenCode  │                         │ Filesystem│
     │ CLI       │                         │ (artifacts)│
     └───────────┘                         └───────────┘
+```
+
+## System Resilience Architecture
+
+This section addresses failure scenarios, recovery mechanisms, and operational resilience that ensure Auto-BMAD meets its zero-data-loss and high-reliability requirements.
+
+### OpenCode Process Lifecycle & Failure Handling
+
+**CRITICAL: OpenCode is not a reliable black box. The architecture must handle all failure modes.**
+
+#### Process States
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OpenCode Process Lifecycle                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────┐    spawn    ┌─────────┐   output   ┌──────────┐   │
+│  │ PENDING │ ──────────► │ RUNNING │ ─────────► │ STREAMING│   │
+│  └─────────┘             └────┬────┘            └─────┬────┘   │
+│                               │                       │         │
+│         ┌─────────────────────┼───────────────────────┤         │
+│         │                     │                       │         │
+│         ▼                     ▼                       ▼         │
+│  ┌──────────┐         ┌──────────┐            ┌──────────┐     │
+│  │ TIMEOUT  │         │ CRASHED  │            │ COMPLETED│     │
+│  └────┬─────┘         └────┬─────┘            └────┬─────┘     │
+│       │                    │                       │            │
+│       ▼                    ▼                       ▼            │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │              CLEANUP (kill process, save state)       │      │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Failure Detection Mechanisms
+
+| Failure Type | Detection Method | Timeout | Recovery Action |
+|--------------|------------------|---------|-----------------|
+| **Spawn Failure** | `exec.Command` returns error | Immediate | Log error, mark step failed, offer retry |
+| **Hang (no output)** | Heartbeat timer (no stdout for N seconds) | 60s default | Send SIGTERM, wait 5s, SIGKILL |
+| **Hang (with output)** | Step timeout exceeded | 5min default (configurable) | Same as above |
+| **Crash (unexpected exit)** | Exit code ≠ 0 with stderr | Immediate | Capture stderr, parse error, mark failed |
+| **Partial Output** | Exit during streaming | Immediate | Save partial output, mark incomplete |
+| **Garbage Output** | Output validation fails | Post-completion | Mark step as "needs review" (yellow flag) |
+| **Buffer Blocked** | Write to stdin times out | 10s | Log warning, continue (non-fatal) |
+
+#### Process Monitor Component
+
+```go
+// internal/opencode/monitor.go
+
+type ProcessMonitor struct {
+    process      *exec.Cmd
+    heartbeat    *time.Timer     // Reset on each stdout line
+    stepTimeout  *time.Timer     // Overall step timeout
+    outputBuffer *RingBuffer     // Last N lines for crash diagnosis
+    state        ProcessState
+    mu           sync.Mutex
+}
+
+type ProcessState int
+const (
+    StatePending ProcessState = iota
+    StateRunning
+    StateStreaming
+    StateCompleted
+    StateFailed
+    StateTimeout
+    StateCrashed
+)
+
+// Monitor goroutine runs alongside process
+func (m *ProcessMonitor) Run(ctx context.Context) error {
+    // 1. Reset heartbeat on each stdout line
+    // 2. Check stepTimeout hasn't exceeded
+    // 3. Detect process exit
+    // 4. Handle cleanup on any termination
+}
+```
+
+#### Output Validation Rules
+
+| Validation | Criteria | On Failure |
+|------------|----------|------------|
+| **Non-empty** | Output has at least 1 line | Yellow flag: "OpenCode produced no output" |
+| **No error markers** | No `Error:`, `FATAL:`, `panic:` in output | Capture context, mark step failed |
+| **Expected artifacts** | Check if expected files were created | Yellow flag: "Expected artifact not found" |
+| **Frontmatter valid** | If markdown output, frontmatter parses | Yellow flag: "Artifact may be corrupted" |
+
+#### Timeout Configuration
+
+```json
+// journey-state.json
+{
+  "timeouts": {
+    "stepDefault": 300000,       // 5 minutes (ms)
+    "heartbeatInterval": 60000,  // 60 seconds
+    "gracefulShutdown": 5000,    // 5 seconds SIGTERM→SIGKILL
+    "spawnTimeout": 10000        // 10 seconds to spawn
+  },
+  "stepOverrides": {
+    "create-architecture": 600000,  // 10 min for complex steps
+    "brainstorming": 900000         // 15 min for creative steps
+  }
+}
+```
+
+### IPC Protocol Resilience
+
+**CRITICAL: The stdio/JSON-RPC channel must not deadlock or lose messages.**
+
+#### Message Framing Protocol
+
+**Problem:** Newline-delimited JSON breaks when messages contain newlines (e.g., code blocks).
+
+**Solution:** Length-prefixed framing with JSON envelope.
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     Message Frame Format                        │
+├────────────────────────────────────────────────────────────────┤
+│  [4 bytes: length]  [N bytes: JSON payload]  [1 byte: newline] │
+│                                                                 │
+│  Example:                                                       │
+│  \x00\x00\x00\x2F{"jsonrpc":"2.0","method":"ping","id":1}\n    │
+│  └─── 47 ────────┘└──────────── 47 bytes ───────────────┘      │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Fallback:** If length-prefix adds complexity, use Base64 encoding for payloads with newlines:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "opencode.output",
+  "params": {
+    "chunk": "SGVsbG8gV29ybGQK...",  // Base64 encoded
+    "encoding": "base64"
+  }
+}
+```
+
+#### Backpressure & Flow Control
+
+| Mechanism | Implementation | Trigger |
+|-----------|----------------|---------|
+| **Acknowledgments** | Every 100 events, backend waits for `ack` | Event count threshold |
+| **Buffer High-Water Mark** | Pause event emission at 1000 queued | Queue size |
+| **Reader Slow Detection** | If stdin read takes > 1s, log warning | Read latency |
+| **Graceful Degradation** | Drop non-critical events (debug logs) | Queue > 5000 |
+
+```go
+// internal/server/flow_control.go
+
+type FlowController struct {
+    eventQueue     chan Event
+    pendingAcks    int
+    maxPendingAcks int  // 100
+    highWaterMark  int  // 1000 events
+    dropThreshold  int  // 5000 events
+}
+
+func (fc *FlowController) Emit(event Event) error {
+    if len(fc.eventQueue) > fc.dropThreshold {
+        if event.Priority == PriorityDebug {
+            return nil // Drop low-priority events
+        }
+    }
+    
+    if fc.pendingAcks >= fc.maxPendingAcks {
+        // Block until ack received
+        <-fc.ackReceived
+    }
+    
+    fc.eventQueue <- event
+    fc.pendingAcks++
+    return nil
+}
+```
+
+#### Corrupted Message Recovery
+
+| Scenario | Detection | Recovery |
+|----------|-----------|----------|
+| **Partial JSON** | JSON parse error | Discard, log, request resend |
+| **Wrong length** | Payload length ≠ header | Resync: scan for next valid frame |
+| **Invalid UTF-8** | Encoding validation | Replace invalid bytes, log warning |
+| **Missing fields** | Schema validation | Return JSON-RPC error, continue |
+
+```go
+// Resync algorithm
+func (r *MessageReader) Resync() error {
+    // Scan forward looking for valid JSON-RPC frame
+    for {
+        // Look for `{"jsonrpc":"2.0"` pattern
+        if found {
+            // Attempt to parse from here
+            // If valid, resume normal operation
+            // If invalid, continue scanning
+        }
+    }
+}
+```
+
+#### Buffer Size Specifications
+
+| Buffer | Size | Rationale |
+|--------|------|-----------|
+| **Golang stdout pipe** | 64KB (OS default) | Sufficient for JSON-RPC |
+| **Event queue** | 10,000 events | ~10MB at 1KB/event avg |
+| **OpenCode output ring buffer** | 1000 lines | Diagnostic context on crash |
+| **IPC read buffer** | 1MB | Handle large payloads (code artifacts) |
+
+### Git Checkpoint Error Handling & Recovery
+
+**CRITICAL: Checkpoint operations must never cause data loss.**
+
+#### Failure Modes & Recovery
+
+| Failure | Detection | Recovery | User Impact |
+|---------|-----------|----------|-------------|
+| **Disk full** | `git commit` returns error | Alert user, pause journey | Yellow flag: "Disk space low" |
+| **Git lock contention** | `.git/index.lock` exists | Wait up to 30s, retry 3x | Transparent retry |
+| **Branch already exists** | `git checkout -b` fails | Append timestamp: `journey-{ts}-{n}` | None |
+| **Dirty index** | `git status --porcelain` non-empty | Stash user changes, commit, unstash | Warning: "Stashed your changes" |
+| **Merge conflict** | `git merge` fails | Abort merge, stay on journey branch | Yellow flag with options |
+| **Corrupted repo** | `git status` returns error | Alert user, disable checkpoints | Error: "Git repo issue" |
+
+#### Atomic Checkpoint Operation
+
+```go
+// internal/checkpoint/checkpoint.go
+
+func (c *Checkpointer) CreateCheckpoint(journeyID string, message string) error {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    
+    // 1. Validate git repo is healthy
+    if err := c.validateRepo(); err != nil {
+        return c.handleCorruptedRepo(err)
+    }
+    
+    // 2. Handle dirty index from user
+    stashed, err := c.stashIfDirty()
+    if err != nil {
+        return err
+    }
+    defer func() {
+        if stashed {
+            c.unstash()
+        }
+    }()
+    
+    // 3. Retry loop for transient failures
+    for attempt := 0; attempt < 3; attempt++ {
+        if err := c.tryCommit(message); err != nil {
+            if isTransient(err) {
+                time.Sleep(time.Second * time.Duration(attempt+1))
+                continue
+            }
+            return err
+        }
+        return nil
+    }
+    
+    return ErrCheckpointFailed
+}
+```
+
+#### Branch Naming with Collision Handling
+
+```
+autobmad/journey-{YYYYMMDD-HHMMSS}        # Primary attempt
+autobmad/journey-{YYYYMMDD-HHMMSS}-1      # First collision
+autobmad/journey-{YYYYMMDD-HHMMSS}-2      # Second collision
+```
+
+#### Pre-Commit Validation Checklist
+
+| Check | Command | On Failure |
+|-------|---------|------------|
+| Repo exists | `git rev-parse --git-dir` | Disable checkpoints |
+| Not bare | `git rev-parse --is-bare-repository` | Disable checkpoints |
+| No lock | Check `.git/index.lock` | Wait and retry |
+| Branch valid | `git rev-parse HEAD` | Init if empty repo |
+| Disk space | `df` check for > 100MB free | Yellow flag warning |
+
+### Memory Management Strategy
+
+**CRITICAL: Long-running journeys must not exhaust memory.**
+
+#### Memory Budget by Component
+
+| Component | Idle Budget | Active Budget | Max Growth |
+|-----------|-------------|---------------|------------|
+| **Electron Main** | 100MB | 150MB | +50MB |
+| **React Renderer** | 150MB | 300MB | +150MB |
+| **Golang Backend** | 50MB | 200MB | +150MB |
+| **Total** | 300MB | 650MB | < 800MB |
+
+#### Output Streaming Strategy
+
+**Problem:** OpenCode output can be megabytes. Holding in memory causes OOM.
+
+**Solution:** Stream to disk, keep only tail in memory.
+
+```go
+// internal/opencode/output_handler.go
+
+type OutputHandler struct {
+    memoryBuffer  *RingBuffer     // Last 500 lines in memory
+    diskFile      *os.File        // Full output on disk
+    diskPath      string          // e.g., .autobmad/logs/step-{n}.log
+    totalLines    int
+    totalBytes    int64
+}
+
+func (h *OutputHandler) WriteLine(line string) error {
+    // Always write to disk
+    if _, err := h.diskFile.WriteString(line + "\n"); err != nil {
+        return err
+    }
+    h.totalBytes += int64(len(line) + 1)
+    h.totalLines++
+    
+    // Keep tail in memory for UI
+    h.memoryBuffer.Write(line)
+    
+    return nil
+}
+
+func (h *OutputHandler) GetRecentOutput(lines int) []string {
+    return h.memoryBuffer.Last(lines)
+}
+
+func (h *OutputHandler) GetFullOutputPath() string {
+    return h.diskPath
+}
+```
+
+#### Log Rotation Policy
+
+| Log Type | Max Size | Max Files | Rotation Trigger |
+|----------|----------|-----------|------------------|
+| **Step output** | 10MB | Per step (no limit) | Step completion |
+| **Journey log** | 50MB | 10 journeys | Journey completion |
+| **Application log** | 20MB | 5 files | Size exceeded |
+| **Debug log** | 100MB | 3 files | Size exceeded |
+
+```go
+// internal/common/logger.go
+
+type RotatingLogger struct {
+    maxSize   int64  // bytes
+    maxFiles  int
+    currentFile *os.File
+    currentSize int64
+}
+
+func (l *RotatingLogger) rotate() error {
+    // 1. Close current file
+    // 2. Rename: app.log → app.log.1, app.log.1 → app.log.2, etc.
+    // 3. Delete oldest if > maxFiles
+    // 4. Create new app.log
+}
+```
+
+#### Journey State Pruning
+
+```json
+// .autobmad/config.json
+{
+  "retention": {
+    "completedJourneys": 100,       // Keep last N journey states
+    "journeyLogsMaxAge": "30d",     // Delete logs older than
+    "archiveAfter": "7d",           // Move to archive after
+    "archiveLocation": ".autobmad/archive/"
+  }
+}
+```
+
+#### Memory Monitoring
+
+```go
+// internal/common/memory_monitor.go
+
+type MemoryMonitor struct {
+    warningThreshold  uint64  // 600MB
+    criticalThreshold uint64  // 750MB
+    checkInterval     time.Duration
+}
+
+func (m *MemoryMonitor) Run(ctx context.Context) {
+    ticker := time.NewTicker(m.checkInterval)
+    for {
+        select {
+        case <-ticker.C:
+            var mem runtime.MemStats
+            runtime.ReadMemStats(&mem)
+            
+            if mem.Alloc > m.criticalThreshold {
+                // Force GC, emit warning event
+                runtime.GC()
+                emitEvent("system.memoryWarning", "critical")
+            } else if mem.Alloc > m.warningThreshold {
+                emitEvent("system.memoryWarning", "warning")
+            }
+        case <-ctx.Done():
+            return
+        }
+    }
+}
+```
+
+### Yellow Flag Lifecycle & Timeout Policy
+
+**CRITICAL: Yellow flags must not block indefinitely or leak resources.**
+
+#### Yellow Flag State Machine
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Yellow Flag Lifecycle                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Step Needs Input                                                │
+│        │                                                         │
+│        ▼                                                         │
+│  ┌──────────┐    30 min    ┌──────────────┐    4 hr    ┌──────┐ │
+│  │ RAISED   │ ───────────► │ REMINDER     │ ────────► │URGENT│ │
+│  │          │              │ (notification)│           │      │ │
+│  └────┬─────┘              └──────┬───────┘           └───┬──┘ │
+│       │                          │                        │     │
+│       │ user responds            │ user responds          │     │
+│       ▼                          ▼                        ▼     │
+│  ┌──────────┐              ┌──────────┐            ┌──────────┐ │
+│  │ RESOLVED │              │ RESOLVED │            │AUTO-DECIDE│ │
+│  └──────────┘              └──────────┘            └─────┬────┘ │
+│                                                          │      │
+│                                                          ▼      │
+│                            48 hr from RAISED      ┌──────────┐  │
+│                            ───────────────────►   │ ARCHIVED │  │
+│                            (no response)          └──────────┘  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Timeout Policy
+
+| Timeout | Duration | Action | User Notification |
+|---------|----------|--------|-------------------|
+| **Initial** | 0 | Raise yellow flag | Desktop notification + in-app |
+| **Reminder** | 30 min | Send reminder | Desktop notification |
+| **Escalation** | 4 hr | Offer "Let AI Decide" | Urgent notification |
+| **Auto-Archive** | 48 hr | Archive journey | Final notification |
+
+#### Resource State During Yellow Flag
+
+| Resource | State During Wait | Cleanup |
+|----------|-------------------|---------|
+| **OpenCode Process** | Terminated (exit or killed) | Already cleaned up |
+| **Golang Backend** | Running, minimal CPU | N/A |
+| **Journey State** | Persisted to disk | N/A |
+| **UI** | Showing yellow flag modal | Updates on resolution |
+| **Memory** | Output already streamed to disk | N/A |
+
+```go
+// internal/journey/yellow_flag.go
+
+type YellowFlag struct {
+    JourneyID    string
+    StepIndex    int
+    Reason       string
+    Options      []YellowFlagOption
+    RaisedAt     time.Time
+    State        YellowFlagState
+    ReminderSent bool
+    EscalatedAt  *time.Time
+}
+
+type YellowFlagState int
+const (
+    YellowFlagRaised YellowFlagState = iota
+    YellowFlagReminded
+    YellowFlagEscalated
+    YellowFlagResolved
+    YellowFlagAutoDecided
+    YellowFlagArchived
+)
+
+func (yf *YellowFlag) CheckTimeouts() {
+    elapsed := time.Since(yf.RaisedAt)
+    
+    switch {
+    case elapsed > 48*time.Hour && yf.State < YellowFlagArchived:
+        yf.archive()
+    case elapsed > 4*time.Hour && yf.State < YellowFlagEscalated:
+        yf.escalate()
+    case elapsed > 30*time.Minute && yf.State < YellowFlagReminded:
+        yf.sendReminder()
+    }
+}
+
+func (yf *YellowFlag) escalate() {
+    yf.State = YellowFlagEscalated
+    yf.EscalatedAt = timePtr(time.Now())
+    emitEvent("yellowFlag.escalated", YellowFlagPayload{
+        JourneyID: yf.JourneyID,
+        StepIndex: yf.StepIndex,
+        Options:   append(yf.Options, YellowFlagOption{
+            ID:    "auto-decide",
+            Label: "Let AI Decide",
+            Hint:  "AI will choose based on context",
+        }),
+    })
+}
+```
+
+#### Yellow Flag Options Schema
+
+```json
+{
+  "yellowFlag": {
+    "journeyId": "j-20260121-001",
+    "stepIndex": 3,
+    "reason": "Multiple architecture patterns possible",
+    "raisedAt": "2026-01-21T10:30:00Z",
+    "options": [
+      {
+        "id": "option-1",
+        "label": "Use Microservices",
+        "hint": "Better for scaling, more complex",
+        "confidence": 0.7
+      },
+      {
+        "id": "option-2",
+        "label": "Use Monolith",
+        "hint": "Simpler, faster to implement",
+        "confidence": 0.6
+      },
+      {
+        "id": "retry",
+        "label": "Retry Step",
+        "hint": "Try again with different approach"
+      },
+      {
+        "id": "skip",
+        "label": "Skip Step",
+        "hint": "Continue without this step"
+      }
+    ],
+    "timeoutPolicy": {
+      "reminderAt": "2026-01-21T11:00:00Z",
+      "escalateAt": "2026-01-21T14:30:00Z",
+      "archiveAt": "2026-01-23T10:30:00Z"
+    }
+  }
+}
+```
+
+### System Crash Recovery Sequence
+
+**CRITICAL: Users must never lose work due to crashes.**
+
+#### Crash Scenarios & Recovery
+
+| Crash Type | Detection | Recovery Sequence |
+|------------|-----------|-------------------|
+| **Electron Main Crash** | Process monitor, OS signal | Backend continues, restart Electron, reconnect |
+| **Golang Backend Crash** | Electron detects stdio EOF | Save UI state, restart backend, restore from disk |
+| **OpenCode Crash** | Exit code, process monitor | Capture partial output, mark step failed, offer retry |
+| **System Power Loss** | Next startup | Read journey-state.json, validate vs git, offer resume |
+| **User Force Quit** | SIGTERM/SIGKILL | Same as power loss |
+
+#### Startup Recovery Sequence
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Startup Recovery Sequence                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  App Launch                                                      │
+│      │                                                           │
+│      ▼                                                           │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 1. Check for .autobmad/journey-state.json                │   │
+│  └─────────────────────────┬────────────────────────────────┘   │
+│                            │                                     │
+│         ┌──────────────────┴──────────────────┐                 │
+│         │                                      │                 │
+│         ▼ exists                               ▼ not exists      │
+│  ┌─────────────────┐                    ┌─────────────────┐     │
+│  │ 2. Parse state  │                    │ Normal startup  │     │
+│  └────────┬────────┘                    └─────────────────┘     │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 3. Validate state:                                      │    │
+│  │    - JSON schema valid?                                  │    │
+│  │    - Referenced files exist?                             │    │
+│  │    - Git branch exists?                                  │    │
+│  │    - Checksum matches (if stored)?                       │    │
+│  └────────┬────────────────────────────────┬───────────────┘    │
+│           │ valid                          │ corrupted           │
+│           ▼                                ▼                     │
+│  ┌─────────────────┐               ┌─────────────────┐          │
+│  │ 4. Check status │               │ Attempt Git     │          │
+│  │    of journey   │               │ checkpoint      │          │
+│  └────────┬────────┘               │ recovery        │          │
+│           │                        └────────┬────────┘          │
+│           │                                 │                    │
+│  ┌────────┴────────────────────────────────┐                    │
+│  │                                          │                    │
+│  ▼ running/paused                          ▼ completed           │
+│  ┌─────────────────┐               ┌─────────────────┐          │
+│  │ 5. Show resume  │               │ Normal startup  │          │
+│  │    dialog       │               │ (mark seen)     │          │
+│  └─────────────────┘               └─────────────────┘          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### State File Schema with Integrity
+
+```json
+// .autobmad/journey-state.json
+{
+  "version": 1,
+  "checksum": "sha256:abc123...",  // Hash of state content (excluding checksum)
+  "lastModified": "2026-01-21T10:35:00Z",
+  "journey": {
+    "id": "j-20260121-001",
+    "workflow": "create-prd",
+    "status": "running",
+    "currentStepIndex": 3,
+    "startedAt": "2026-01-21T10:00:00Z",
+    "gitBranch": "autobmad/journey-20260121-100000",
+    "lastCheckpoint": "abc123def456"
+  },
+  "steps": [
+    {
+      "index": 0,
+      "name": "init",
+      "status": "completed",
+      "checkpointSha": "sha1:..."
+    }
+  ],
+  "yellowFlag": null
+}
+```
+
+#### Orphan Process Cleanup
+
+```go
+// internal/opencode/cleanup.go
+
+func CleanupOrphanedProcesses() error {
+    // 1. Read PID file if exists: .autobmad/opencode.pid
+    // 2. Check if process is still running
+    // 3. If running, send SIGTERM
+    // 4. Wait 5s, send SIGKILL if still alive
+    // 5. Delete PID file
+    
+    pidFile := ".autobmad/opencode.pid"
+    if _, err := os.Stat(pidFile); os.IsNotExist(err) {
+        return nil // No orphan
+    }
+    
+    pidBytes, _ := os.ReadFile(pidFile)
+    pid, _ := strconv.Atoi(string(pidBytes))
+    
+    process, err := os.FindProcess(pid)
+    if err != nil {
+        os.Remove(pidFile)
+        return nil
+    }
+    
+    // Try graceful shutdown first
+    process.Signal(syscall.SIGTERM)
+    
+    // Wait with timeout
+    done := make(chan error)
+    go func() {
+        _, err := process.Wait()
+        done <- err
+    }()
+    
+    select {
+    case <-done:
+        // Process exited
+    case <-time.After(5 * time.Second):
+        // Force kill
+        process.Signal(syscall.SIGKILL)
+    }
+    
+    os.Remove(pidFile)
+    return nil
+}
+```
+
+### Security Model & Input Validation
+
+**CRITICAL: IPC messages must not be blindly trusted.**
+
+#### Threat Model
+
+| Threat | Vector | Mitigation |
+|--------|--------|------------|
+| **Path Traversal** | Malicious file paths in `project.detect` | Allowlist validation |
+| **Command Injection** | Malformed prompts to OpenCode | Escape/quote all inputs |
+| **Git Injection** | Malicious branch names, commit messages | Sanitize special characters |
+| **IPC Spoofing** | Malicious renderer sends fake requests | Context isolation + validation |
+| **Resource Exhaustion** | Huge payloads in IPC | Size limits on all inputs |
+| **Sensitive Data Exposure** | Logging API keys | Never log prompt content |
+
+#### Path Validation
+
+```go
+// internal/common/security.go
+
+var ErrPathTraversal = errors.New("path traversal detected")
+
+func ValidatePath(basePath, requestedPath string) error {
+    // 1. Resolve to absolute path
+    absBase, _ := filepath.Abs(basePath)
+    absRequested, _ := filepath.Abs(requestedPath)
+    
+    // 2. Check requested is within base
+    if !strings.HasPrefix(absRequested, absBase) {
+        return ErrPathTraversal
+    }
+    
+    // 3. Check for suspicious patterns
+    suspicious := []string{"..", "~", "$", "`", "|", ";", "&"}
+    for _, s := range suspicious {
+        if strings.Contains(requestedPath, s) {
+            return ErrPathTraversal
+        }
+    }
+    
+    return nil
+}
+```
+
+#### Input Validation for JSON-RPC Handlers
+
+| Method | Validation Rules |
+|--------|------------------|
+| `journey.start` | Workflow name must exist in manifest, no path separators |
+| `project.detect` | Path must be within allowed directories |
+| `checkpoint.rollback` | SHA must match `^[a-f0-9]{40}$` |
+| `config.set` | Key must be in allowlist, value type must match schema |
+| `opencode.execute` | Prompt length < 100KB, no null bytes |
+
+```go
+// internal/server/validators.go
+
+type JourneyStartRequest struct {
+    Workflow string `json:"workflow" validate:"required,alphanum,max=100"`
+}
+
+type CheckpointRollbackRequest struct {
+    SHA string `json:"sha" validate:"required,hexadecimal,len=40"`
+}
+
+type ProjectDetectRequest struct {
+    Path string `json:"path" validate:"required,filepath"`
+}
+
+func (h *Handler) validateRequest(method string, params json.RawMessage) error {
+    switch method {
+    case "journey.start":
+        var req JourneyStartRequest
+        if err := json.Unmarshal(params, &req); err != nil {
+            return ErrInvalidParams
+        }
+        return validate.Struct(req)
+        
+    case "checkpoint.rollback":
+        var req CheckpointRollbackRequest
+        // ... validation
+        
+    case "project.detect":
+        var req ProjectDetectRequest
+        if err := json.Unmarshal(params, &req); err != nil {
+            return ErrInvalidParams
+        }
+        // Additional path traversal check
+        return ValidatePath(h.allowedBasePath, req.Path)
+    }
+    return nil
+}
+```
+
+#### Electron Security Configuration
+
+```typescript
+// src/main/index.ts
+
+const mainWindow = new BrowserWindow({
+    webPreferences: {
+        // MANDATORY security settings
+        contextIsolation: true,      // Separate contexts
+        nodeIntegration: false,      // No Node in renderer
+        sandbox: true,               // OS-level sandboxing
+        webSecurity: true,           // Same-origin policy
+        allowRunningInsecureContent: false,
+        
+        preload: path.join(__dirname, '../preload/index.js'),
+    },
+});
+
+// Restrict navigation
+mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Only allow navigation within app
+    if (!url.startsWith('file://')) {
+        event.preventDefault();
+    }
+});
+
+// Block new windows
+mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+});
+```
+
+#### Preload Script Security
+
+```typescript
+// src/preload/index.ts
+
+import { contextBridge, ipcRenderer } from 'electron';
+
+// ONLY expose specific methods, NEVER expose ipcRenderer directly
+contextBridge.exposeInMainWorld('api', {
+    journey: {
+        start: (workflow: string) => {
+            // Validate before sending
+            if (typeof workflow !== 'string' || workflow.length > 100) {
+                throw new Error('Invalid workflow');
+            }
+            return ipcRenderer.invoke('journey.start', workflow);
+        },
+        pause: () => ipcRenderer.invoke('journey.pause'),
+        resume: () => ipcRenderer.invoke('journey.resume'),
+        abort: () => ipcRenderer.invoke('journey.abort'),
+    },
+    
+    // Event subscriptions with cleanup
+    on: (channel: string, callback: Function) => {
+        const allowedChannels = [
+            'journey.started', 'journey.completed', 'step.started',
+            'step.completed', 'step.failed', 'yellowFlag.raised',
+        ];
+        if (!allowedChannels.includes(channel)) {
+            throw new Error(`Channel not allowed: ${channel}`);
+        }
+        const subscription = (_event: any, ...args: any[]) => callback(...args);
+        ipcRenderer.on(channel, subscription);
+        return () => ipcRenderer.removeListener(channel, subscription);
+    },
+});
+```
+
+#### Sensitive Data Handling
+
+| Data Type | Handling | Storage |
+|-----------|----------|---------|
+| **API Keys** | Never logged, never in state | Only in OpenCode config |
+| **Prompt Content** | Truncate in logs (first 100 chars) | Full text only in artifacts |
+| **File Paths** | Log relative paths only | Full paths in state |
+| **Error Messages** | Sanitize before UI display | Full in debug logs |
+
+```go
+// internal/common/logger.go
+
+func SanitizeForLog(content string) string {
+    // Truncate long content
+    if len(content) > 100 {
+        content = content[:100] + "..."
+    }
+    
+    // Redact potential secrets
+    patterns := []string{
+        `(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*\S+`,
+        `sk-[a-zA-Z0-9]{32,}`,  // OpenAI key pattern
+    }
+    for _, p := range patterns {
+        re := regexp.MustCompile(p)
+        content = re.ReplaceAllString(content, "[REDACTED]")
+    }
+    
+    return content
+}
 ```
 
 ## Implementation Patterns & Consistency Rules
@@ -947,11 +1846,32 @@ cd apps/desktop && npm run build
 
 ### Gap Analysis Results
 
-**Critical Gaps:** None identified. Architecture is complete for MVP implementation.
+**Critical Gaps:** ✅ ADDRESSED (2026-01-22 Adversarial Review)
 
-**Important Gaps (Non-blocking):**
+The following critical and high-severity gaps were identified and resolved:
+
+| Issue | Severity | Resolution |
+|-------|----------|------------|
+| OpenCode CLI failure handling | Critical | Added Process Lifecycle & Failure Handling section |
+| IPC backpressure/flow control | Critical | Added IPC Protocol Resilience section |
+| Git checkpoint error handling | High | Added Git Checkpoint Error Handling section |
+| Memory budget for long journeys | High | Added Memory Management Strategy section |
+| Yellow flag timeout policy | High | Added Yellow Flag Lifecycle & Timeout Policy section |
+| Crash recovery sequence | High | Added System Crash Recovery Sequence section |
+| Security model/input validation | High | Added Security Model & Input Validation section |
+
+**Medium Gaps (Address During Implementation):**
+- UI-Backend state synchronization: Define event subscription model with sequence numbers
+- API contract versioning: Add version handshake on connection
+- Integration test strategy: Add test harness specification
+- Corruption detection: Implement atomic writes with checksums
+- Brownfield detection: Explicitly mark as post-MVP or expand project structure
+- Network connectivity handling: Add network monitor component
+
+**Low-Priority Gaps (Nice to Have):**
+- OpenCode profile detection algorithm
+- Emergency stop implementation details
 - Keyboard shortcuts: Define during UI implementation
-- Log rotation: Implement in logger module
 - Auto-update: Add electron-updater post-MVP
 
 **Deferred to Post-MVP:**
@@ -986,6 +1906,15 @@ cd apps/desktop && npm run build
 - [x] Integration points: IPC, preload, filesystem
 - [x] Requirements mapping: All FRs mapped to locations
 
+**✅ System Resilience (Added 2026-01-22)**
+- [x] OpenCode process lifecycle: States, timeouts, failure detection, recovery
+- [x] IPC protocol resilience: Message framing, backpressure, flow control
+- [x] Git checkpoint robustness: Error handling, retry logic, collision handling
+- [x] Memory management: Budgets, streaming, log rotation, pruning
+- [x] Yellow flag lifecycle: Timeout policy, escalation, auto-archive
+- [x] Crash recovery: Startup sequence, state validation, orphan cleanup
+- [x] Security model: Input validation, path traversal, Electron hardening
+
 ### Architecture Readiness Assessment
 
 **Overall Status:** ✅ READY FOR IMPLEMENTATION
@@ -998,12 +1927,16 @@ cd apps/desktop && npm run build
 - Event-based checkpoints provide rollback capability
 - JSON-RPC 2.0 provides standard, debuggable IPC
 - Feature-based organization scales with requirements
+- Comprehensive resilience architecture covering all failure modes
+- Security-first design with input validation and path protection
+- Memory-conscious design for long-running operations
 
 **Areas for Future Enhancement:**
 - Windows platform support
 - Electron auto-update mechanism
 - Plugin architecture for extensibility
 - Journey templates for common workflows
+- Advanced brownfield discovery protocol
 
 ## Architecture Completion Summary
 
@@ -1022,10 +1955,12 @@ cd apps/desktop && npm run build
 - Complete project structure with all files and directories
 - Requirements to architecture mapping
 - Validation confirming coherence and completeness
+- **System Resilience Architecture** (added 2026-01-22 after adversarial review)
 
 **🏗️ Implementation Ready Foundation**
 - 5 critical architectural decisions made
 - 8 implementation pattern categories defined
+- 7 resilience subsystems specified (OpenCode, IPC, Git, Memory, Yellow Flag, Recovery, Security)
 - 15-20 architectural components specified
 - 52 FRs + 24 NFRs fully supported
 
