@@ -5,11 +5,14 @@ const yaml = require('yaml');
  * @class ScopeValidator
  */
 class ScopeValidator {
-  constructor() {
-    // Scope ID validation pattern: lowercase alphanumeric + hyphens, 2-50 chars
+  // Scope ID validation pattern: lowercase alphanumeric + hyphens, 2-50 chars
+  // IMPORTANT: Must be defined as class field BEFORE constructor to be available in validateScopeId
+  scopeIdPattern = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 
+  constructor() {
     // Reserved scope IDs that cannot be used
-    this.reservedIds = ['_shared', '_events', '_config', 'global', 'default'];
+    // NOTE: 'default' removed from reserved list - it's valid for migration scenarios
+    this.reservedIds = ['_shared', '_events', '_config', '_backup', 'global'];
 
     // Valid isolation modes
     this.validIsolationModes = ['strict', 'warn', 'permissive'];
@@ -288,7 +291,6 @@ class ScopeValidator {
       scopes: {},
     };
   }
-  scopeIdPattern = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 }
 
 module.exports = { ScopeValidator };

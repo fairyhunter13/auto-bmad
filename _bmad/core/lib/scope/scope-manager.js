@@ -69,7 +69,7 @@ class ScopeManager {
       const config = await this.loadConfig();
       return config !== null;
     } catch (error) {
-      throw new Error(`Failed to initialize scope manager: ${error.message}`);
+      throw new Error(`Failed to initialize scope manager: ${error.message}`, { cause: error });
     }
   }
 
@@ -105,7 +105,7 @@ class ScopeManager {
       this._config = config;
       return config;
     } catch (error) {
-      throw new Error(`Failed to load scopes configuration: ${error.message}`);
+      throw new Error(`Failed to load scopes configuration: ${error.message}`, { cause: error });
     }
   }
 
@@ -136,7 +136,7 @@ class ScopeManager {
       this._config = config;
       return true;
     } catch (error) {
-      throw new Error(`Failed to save scopes configuration: ${error.message}`);
+      throw new Error(`Failed to save scopes configuration: ${error.message}`, { cause: error });
     }
   }
 
@@ -164,7 +164,7 @@ class ScopeManager {
 
       return scopes;
     } catch (error) {
-      throw new Error(`Failed to list scopes: ${error.message}`);
+      throw new Error(`Failed to list scopes: ${error.message}`, { cause: error });
     }
   }
 
@@ -178,7 +178,7 @@ class ScopeManager {
       const config = await this.loadConfig();
       return config.scopes?.[scopeId] || null;
     } catch (error) {
-      throw new Error(`Failed to get scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to get scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -250,7 +250,7 @@ class ScopeManager {
 
       return scope;
     } catch (error) {
-      throw new Error(`Failed to create scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to create scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -299,7 +299,7 @@ class ScopeManager {
 
       return updatedScope;
     } catch (error) {
-      throw new Error(`Failed to update scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to update scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -343,7 +343,7 @@ class ScopeManager {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to remove scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to remove scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -372,7 +372,7 @@ class ScopeManager {
         meta: path.join(scopePath, '.scope-meta.yaml'),
       };
     } catch (error) {
-      throw new Error(`Failed to get scope paths for '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to get scope paths for '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -385,7 +385,7 @@ class ScopeManager {
   resolvePath(template, scopeId) {
     return template
       .replaceAll('{scope}', scopeId)
-      .replaceAll('{output_folder}', this.config?.settings?.default_output_base || '_bmad-output');
+      .replaceAll('{output_folder}', this._config?.settings?.default_output_base || '_bmad-output');
   }
 
   /**
@@ -424,7 +424,7 @@ class ScopeManager {
 
       return tree;
     } catch (error) {
-      throw new Error(`Failed to get dependency tree for '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to get dependency tree for '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 

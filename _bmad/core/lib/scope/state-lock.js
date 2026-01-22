@@ -201,19 +201,14 @@ class StateLock {
     return this.withLock(filePath, async () => {
       // Read current data
       const data = await this.readYaml(filePath);
-      const currentVersion = data._version || 0;
 
       // Apply modifications
       const modified = await modifier(data);
 
-      // Update version
-      modified._version = currentVersion + 1;
-      modified._lastModified = new Date().toISOString();
+      // Write back - writeYaml handles version increment
+      const result = await this.writeYaml(filePath, modified);
 
-      // Write back
-      await this.writeYaml(filePath, modified);
-
-      return modified;
+      return result;
     });
   }
 

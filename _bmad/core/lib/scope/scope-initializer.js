@@ -1,6 +1,7 @@
 const path = require('node:path');
 const fs = require('fs-extra');
 const yaml = require('yaml');
+const { ScopeValidator } = require('./scope-validator');
 
 /**
  * Initializes directory structure for scopes
@@ -51,7 +52,7 @@ class ScopeInitializer {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to initialize scope system: ${error.message}`);
+      throw new Error(`Failed to initialize scope system: ${error.message}`, { cause: error });
     }
   }
 
@@ -84,7 +85,7 @@ class ScopeInitializer {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to initialize shared layer: ${error.message}`);
+      throw new Error(`Failed to initialize shared layer: ${error.message}`, { cause: error });
     }
   }
 
@@ -120,7 +121,7 @@ class ScopeInitializer {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to initialize event system: ${error.message}`);
+      throw new Error(`Failed to initialize event system: ${error.message}`, { cause: error });
     }
   }
 
@@ -132,6 +133,13 @@ class ScopeInitializer {
    */
   async initializeScope(scopeId, options = {}) {
     try {
+      // Validate scope ID for defense in depth (caller should have validated, but be safe)
+      const validator = new ScopeValidator();
+      const idValidation = validator.validateScopeId(scopeId);
+      if (!idValidation.valid) {
+        throw new Error(`Invalid scope ID: ${idValidation.error}`);
+      }
+
       const scopePath = path.join(this.outputPath, scopeId);
 
       // Check if scope directory already exists
@@ -182,7 +190,7 @@ class ScopeInitializer {
 
       return paths;
     } catch (error) {
-      throw new Error(`Failed to initialize scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to initialize scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 
@@ -212,7 +220,7 @@ class ScopeInitializer {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to remove scope '${scopeId}': ${error.message}`);
+      throw new Error(`Failed to remove scope '${scopeId}': ${error.message}`, { cause: error });
     }
   }
 

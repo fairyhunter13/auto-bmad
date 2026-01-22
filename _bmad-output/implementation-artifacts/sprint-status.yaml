@@ -1,0 +1,154 @@
+# generated: 2026-01-22
+# project: auto-bmad
+# project_key: autobmad
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-01-22
+project: auto-bmad
+project_key: autobmad
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # ============================================================================
+  # EPIC 1: Project Foundation & OpenCode Integration (10 stories)
+  # ============================================================================
+  # Goal: Users can open any BMAD project and have Auto-BMAD detect the project
+  #       structure, verify dependencies (Git, OpenCode), and be ready to start journeys.
+  # FRs: FR11-FR14, FR44-FR52
+  # Stories created: 2026-01-22
+  # ============================================================================
+  epic-1: in-progress
+  1-1-initialize-monorepo-with-electron-vite-and-golang: review
+  1-2-implement-json-rpc-server-foundation: review
+  1-3-create-electron-ipc-bridge: review
+  1-4-detect-and-validate-opencode-cli: ready-for-dev
+  1-5-detect-opencode-profiles: ready-for-dev
+  1-6-detect-git-installation: ready-for-dev
+  1-7-detect-bmad-project-structure: ready-for-dev
+  1-8-project-folder-selection-ui: ready-for-dev
+  1-9-settings-persistence: ready-for-dev
+  1-10-network-status-detection: ready-for-dev
+  epic-1-retrospective: optional
+
+  # ============================================================================
+  # EPIC 2: Journey Planning & Visualization (9 stories)
+  # ============================================================================
+  # Goal: Users can create journeys by selecting destinations, view calculated
+  #       routes before starting, and understand exactly what will happen.
+  # FRs: FR1-FR4, FR36-FR39
+  # ============================================================================
+  epic-2: backlog
+  2-1-journey-state-management: backlog
+  2-2-bmad-workflow-discovery: backlog
+  2-3-destination-selection-ui: backlog
+  2-4-route-calculation-engine: backlog
+  2-5-route-preview-display: backlog
+  2-6-journey-dashboard-layout: backlog
+  2-7-journey-status-indicators: backlog
+  2-8-artifact-viewer: backlog
+  2-9-start-journey-action: backlog
+  epic-2-retrospective: optional
+
+  # ============================================================================
+  # EPIC 3: Autonomous Workflow Execution (10 stories)
+  # ============================================================================
+  # Goal: Users can start journeys and have Auto-BMAD execute BMAD workflows
+  #       autonomously via OpenCode, with real-time output capture and checkpoint safety.
+  # FRs: FR5-FR6, FR15-FR21
+  # ============================================================================
+  epic-3: backlog
+  3-1-opencode-process-spawning: backlog
+  3-2-output-streaming-and-capture: backlog
+  3-3-process-monitoring: backlog
+  3-4-workflow-completion-detection: backlog
+  3-5-sequential-workflow-execution: backlog
+  3-6-git-checkpoint-commits: backlog
+  3-7-pause-journey: backlog
+  3-8-cancel-journey: backlog
+  3-9-process-termination: backlog
+  3-10-bmad-context-passing: backlog
+  epic-3-retrospective: optional
+
+  # ============================================================================
+  # EPIC 4: Feedback System & Adaptive Direction (6 stories)
+  # ============================================================================
+  # Goal: Users can respond to yellow flags quickly, provide feedback during
+  #       execution, and have the system adapt direction based on input.
+  # FRs: FR8-FR10, FR43
+  # ============================================================================
+  epic-4: backlog
+  4-1-yellow-flag-detection: backlog
+  4-2-desktop-notifications: backlog
+  4-3-yellow-flag-modal-ui: backlog
+  4-4-feedback-submission: backlog
+  4-5-journey-resume-from-checkpoint: backlog
+  4-6-adaptive-direction: backlog
+  epic-4-retrospective: optional
+
+  # ============================================================================
+  # EPIC 5: Auto-Retry & Failure Recovery (11 stories)
+  # ============================================================================
+  # Goal: Users experience intelligent auto-retry on failures, accumulating
+  #       feedback across attempts, with honest failure reporting and recovery options.
+  # FRs: FR22-FR35
+  # ============================================================================
+  epic-5: backlog
+  5-1-auto-retry-on-failure: backlog
+  5-2-feedback-accumulation: backlog
+  5-3-retry-configuration: backlog
+  5-4-retry-escalation: backlog
+  5-5-retry-tracking: backlog
+  5-6-accurate-failure-detection: backlog
+  5-7-failure-explanation: backlog
+  5-8-root-cause-categorization: backlog
+  5-9-saved-lost-state-reporting: backlog
+  5-10-failure-details-view: backlog
+  5-11-recovery-option-suggestions: backlog
+  epic-5-retrospective: optional
+
+  # ============================================================================
+  # EPIC 6: Dashboard & Journey History (6 stories)
+  # ============================================================================
+  # Goal: Users can view complete journey history, completion summaries, retry
+  #       statistics, and access past artifacts — the full observability experience.
+  # FRs: FR7, FR40-FR42
+  # ============================================================================
+  epic-6: backlog
+  6-1-journey-history-persistence: backlog
+  6-2-journey-history-list-view: backlog
+  6-3-retry-progress-display: backlog
+  6-4-journey-completion-summary: backlog
+  6-5-history-search-and-filter: backlog
+  6-6-command-palette: backlog
+  epic-6-retrospective: optional

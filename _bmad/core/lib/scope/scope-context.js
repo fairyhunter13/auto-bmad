@@ -69,7 +69,7 @@ class ScopeContext {
       await fs.writeFile(this.contextFilePath, yaml.stringify(context), 'utf8');
       return true;
     } catch (error) {
-      throw new Error(`Failed to set scope context: ${error.message}`);
+      throw new Error(`Failed to set scope context: ${error.message}`, { cause: error });
     }
   }
 
@@ -84,7 +84,7 @@ class ScopeContext {
       }
       return true;
     } catch (error) {
-      throw new Error(`Failed to clear scope context: ${error.message}`);
+      throw new Error(`Failed to clear scope context: ${error.message}`, { cause: error });
     }
   }
 
@@ -152,7 +152,7 @@ class ScopeContext {
         context.merged = context.scope;
       }
     } catch (error) {
-      throw new Error(`Failed to load project context: ${error.message}`);
+      throw new Error(`Failed to load project context: ${error.message}`, { cause: error });
     }
 
     return context;
@@ -163,9 +163,11 @@ class ScopeContext {
    * Priority: explicit > session > environment > prompt
    * @param {string} explicitScope - Explicitly provided scope (highest priority)
    * @param {boolean} promptIfMissing - Whether to throw if no scope found
+   * @param {object} options - Additional options
+   * @param {boolean} options.silent - Suppress warning when no scope found
    * @returns {Promise<string|null>} Resolved scope ID
    */
-  async resolveScope(explicitScope = null, promptIfMissing = false) {
+  async resolveScope(explicitScope = null, promptIfMissing = false, options = {}) {
     // 1. Explicit scope (from --scope flag or parameter)
     if (explicitScope) {
       return explicitScope;
@@ -185,7 +187,16 @@ class ScopeContext {
 
     // 4. No scope found
     if (promptIfMissing) {
-      throw new Error('No scope set. Use --scope flag or run: bmad scope create <id>');
+      throw new Error('No scope set. Use --scope flag or run: npx bmad-fh scope set <id>');
+    }
+
+    // Warn user about missing scope (unless silent mode)
+    if (!options.silent) {
+      console.warn(
+        '\u001B[33mNo scope set. Artifacts will go to root _bmad-output/ directory.\u001B[0m\n' +
+          '   To use scoped artifacts, run: npx bmad-fh scope set <scope-id>\n' +
+          '   Or set BMAD_SCOPE environment variable.\n',
+      );
     }
 
     return null;
@@ -293,7 +304,7 @@ export BMAD_SCOPE_TESTS="${vars.scope_tests}"
       await fs.writeFile(this.contextFilePath, yaml.stringify(updated), 'utf8');
       return true;
     } catch (error) {
-      throw new Error(`Failed to update context metadata: ${error.message}`);
+      throw new Error(`Failed to update context metadata: ${error.message}`, { cause: error });
     }
   }
 }

@@ -92,8 +92,21 @@ class EventLogger {
     };
 
     return this.stateLock.withLock(this.eventLogPath, async () => {
-      const content = await fs.readFile(this.eventLogPath, 'utf8');
-      const log = yaml.parse(content);
+      // Auto-initialize if event log doesn't exist
+      let log;
+      if (await fs.pathExists(this.eventLogPath)) {
+        const content = await fs.readFile(this.eventLogPath, 'utf8');
+        log = yaml.parse(content) || { version: 1, events: [] };
+      } else {
+        // Create parent directory and initialize
+        await fs.ensureDir(path.dirname(this.eventLogPath));
+        log = { version: 1, events: [] };
+      }
+
+      // Ensure events array exists
+      if (!log.events) {
+        log.events = [];
+      }
 
       // Add event
       log.events.push(event);

@@ -1,0 +1,31 @@
+{
+  "name": "auto-bmad",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous BMAD workflow executor using OpenCode CLI",
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @auto-bmad/desktop dev",
+    "build": "pnpm --filter @auto-bmad/desktop build",
+    "build:core": "bash scripts/build-core.sh",
+    "dev:all": "bash scripts/dev.sh",
+    "lint": "pnpm --filter @auto-bmad/desktop lint",
+    "test": "pnpm --filter @auto-bmad/desktop test"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "keywords": [
+    "bmad",
+    "electron",
+    "opencode",
+    "automation"
+  ],
+  "author": "Hafiz",
+  "license": "MIT"
+}

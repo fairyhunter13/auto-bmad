@@ -26,7 +26,42 @@ go.work.sum
 
 # env file
 .env
+.env.local
+.env.*.local
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Go binary outputs
+apps/core/autobmad
+apps/core/autobmad-*
+
+# Electron
+out/
+release/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Auto-BMAD state (not tracked)
+.autobmad/

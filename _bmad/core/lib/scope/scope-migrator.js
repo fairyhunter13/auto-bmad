@@ -108,7 +108,7 @@ class ScopeMigrator {
         }
       }
     } catch (error) {
-      throw new Error(`Failed to analyze existing artifacts: ${error.message}`);
+      throw new Error(`Failed to analyze existing artifacts: ${error.message}`, { cause: error });
     }
 
     return analysis;
@@ -176,7 +176,7 @@ class ScopeMigrator {
 
       return backupPath;
     } catch (error) {
-      throw new Error(`Failed to create backup: ${error.message}`);
+      throw new Error(`Failed to create backup: ${error.message}`, { cause: error });
     }
   }
 
@@ -374,7 +374,7 @@ bmad scope info ${scopeId}
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to rollback: ${error.message}`);
+      throw new Error(`Failed to rollback: ${error.message}`, { cause: error });
     }
   }
 
