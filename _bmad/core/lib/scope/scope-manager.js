@@ -93,7 +93,8 @@ class ScopeManager {
 
       // Read and parse file
       const content = await fs.readFile(this.scopesFilePath, 'utf8');
-      const config = yaml.parse(content);
+      // Guard against null/undefined from yaml.parse (empty YAML files)
+      const config = yaml.parse(content) || {};
 
       // Validate configuration
       const validation = this.validator.validateConfig(config);
@@ -459,6 +460,11 @@ class ScopeManager {
    * @returns {string[]} Array of dependent scope IDs
    */
   findDependentScopesSync(scopeId, allScopes) {
+    // Guard against null/undefined allScopes parameter
+    if (!allScopes || typeof allScopes !== 'object') {
+      return [];
+    }
+
     const dependents = [];
 
     for (const [sid, scope] of Object.entries(allScopes)) {

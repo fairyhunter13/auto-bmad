@@ -152,7 +152,8 @@ class StateLock {
   async readYaml(filePath) {
     try {
       const content = await fs.readFile(filePath, 'utf8');
-      const data = yaml.parse(content);
+      // Guard against null/undefined from yaml.parse (empty YAML files)
+      const data = yaml.parse(content) || {};
 
       // Ensure version field exists
       if (!data._version) {
@@ -300,11 +301,13 @@ class StateLock {
       const content = await fs.readFile(lockPath, 'utf8');
       const info = JSON.parse(content);
       const stat = await fs.stat(lockPath);
+      // Ensure age is never negative due to timing issues
+      const age = Math.max(0, Date.now() - stat.mtimeMs);
 
       return {
         ...info,
-        age: Date.now() - stat.mtimeMs,
-        isStale: Date.now() - stat.mtimeMs > this.staleTimeout,
+        age,
+        isStale: age > this.staleTimeout,
       };
     } catch {
       return null;

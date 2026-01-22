@@ -53,7 +53,8 @@ class ScopeMigrator {
       const scopesYamlPath = path.join(this.bmadPath, '_config', 'scopes.yaml');
       if (await fs.pathExists(scopesYamlPath)) {
         const content = await fs.readFile(scopesYamlPath, 'utf8');
-        const config = yaml.parse(content);
+        // Guard against null/undefined from yaml.parse (empty YAML files)
+        const config = yaml.parse(content) || {};
         if (config.scopes && Object.keys(config.scopes).length > 0) {
           // Already has scopes, check if legacy directories still exist alongside
           return hasLegacyPlanning || hasLegacyImplementation;
@@ -234,7 +235,15 @@ class ScopeMigrator {
         const sourcePath = path.join(this.outputPath, migration.from);
         if (await fs.pathExists(sourcePath)) {
           // Copy contents to scope directory
-          const entries = await fs.readdir(sourcePath, { withFileTypes: true });
+          // Wrap fs.readdir in try-catch for defensive error handling
+          let entries;
+          try {
+            entries = await fs.readdir(sourcePath, { withFileTypes: true });
+          } catch {
+            // If directory is inaccessible, skip migration
+            result.errors.push(`Failed to read directory: ${migration.from}`);
+            continue;
+          }
           for (const entry of entries) {
             const sourceFile = path.join(sourcePath, entry.name);
             const targetFile = path.join(migration.to, entry.name);
@@ -354,7 +363,13 @@ bmad scope info ${scopeId}
       }
 
       // Restore backed up directories
-      const entries = await fs.readdir(backupPath, { withFileTypes: true });
+      // Wrap fs.readdir in try-catch for defensive error handling
+      let entries;
+      try {
+        entries = await fs.readdir(backupPath, { withFileTypes: true });
+      } catch (readError) {
+        throw new Error(`Failed to read backup directory: ${readError.message}`, { cause: readError });
+      }
 
       for (const entry of entries) {
         const sourcePath = path.join(backupPath, entry.name);

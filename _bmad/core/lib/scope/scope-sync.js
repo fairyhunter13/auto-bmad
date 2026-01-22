@@ -78,7 +78,11 @@ class ScopeSync {
     try {
       if (await fs.pathExists(metaPath)) {
         const content = await fs.readFile(metaPath, 'utf8');
-        return yaml.parse(content);
+        // Guard against null/undefined from yaml.parse (empty YAML files)
+        const parsed = yaml.parse(content);
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
       }
     } catch {
       // Ignore errors
@@ -247,7 +251,14 @@ class ScopeSync {
       const meta = await this.loadSyncMeta(scopeId);
 
       // Find all shared files from any scope
-      const sharedScopeDirs = await fs.readdir(this.sharedPath, { withFileTypes: true });
+      // Wrap fs.readdir in try-catch for defensive error handling
+      let sharedScopeDirs;
+      try {
+        sharedScopeDirs = await fs.readdir(this.sharedPath, { withFileTypes: true });
+      } catch {
+        // If shared directory is inaccessible, return empty result
+        sharedScopeDirs = [];
+      }
 
       for (const dir of sharedScopeDirs) {
         if (!dir.isDirectory() || dir.name.startsWith('.')) continue;
@@ -267,8 +278,13 @@ class ScopeSync {
             const metaFilePath = `${sharedFile}.meta`;
             let fileMeta = null;
             if (await fs.pathExists(metaFilePath)) {
-              const metaContent = await fs.readFile(metaFilePath, 'utf8');
-              fileMeta = yaml.parse(metaContent);
+              try {
+                const metaContent = await fs.readFile(metaFilePath, 'utf8');
+                fileMeta = yaml.parse(metaContent);
+              } catch {
+                // If meta file is malformed, treat as no metadata
+                fileMeta = null;
+              }
             }
 
             // Check if we already have this version
@@ -286,7 +302,9 @@ class ScopeSync {
               if (localHash !== sharedHash) {
                 // Check if local was modified after last pull
                 const localStat = await fs.stat(targetPath);
-                if (lastPulled && localStat.mtimeMs > new Date(lastPulled.pulledAt).getTime()) {
+                // Validate pulledAt is a valid date before comparison
+                const pulledAtTime = lastPulled?.pulledAt ? new Date(lastPulled.pulledAt).getTime() : 0;
+                if (lastPulled && !isNaN(pulledAtTime) && localStat.mtimeMs > pulledAtTime) {
                   result.conflicts.push({
                     file: relativePath,
                     scope: dir.name,
@@ -356,7 +374,14 @@ class ScopeSync {
       const searchDir = path.join(scopePath, dir);
 
       if (await fs.pathExists(searchDir)) {
-        const entries = await fs.readdir(searchDir, { withFileTypes: true });
+        // Wrap fs.readdir in try-catch for defensive error handling (race condition protection)
+        let entries;
+        try {
+          entries = await fs.readdir(searchDir, { withFileTypes: true });
+        } catch {
+          // If directory becomes inaccessible, skip this pattern
+          continue;
+        }
 
         for (const entry of entries) {
           if (entry.isFile() && this.matchPattern(entry.name, filePattern)) {
@@ -376,9 +401,26 @@ class ScopeSync {
    * @returns {boolean} True if matches
    */
   matchPattern(filename, pattern) {
-    const regexPattern = pattern.replaceAll('.', String.raw`\.`).replaceAll('*', '.*');
-    const regex = new RegExp(`^${regexPattern}$`);
-    return regex.test(filename);
+    if (!filename || typeof filename !== 'string') return false;
+    if (!pattern || typeof pattern !== 'string') return false;
+    if (pattern === '*') return true;
+
+    // ReDoS protection: limit wildcards to prevent catastrophic backtracking
+    const wildcardCount = (pattern.match(/\*/g) || []).length;
+    if (wildcardCount > 3) {
+      // For patterns with many wildcards, fall back to simple includes check
+      const parts = pattern.split('*').filter(Boolean);
+      return parts.every((part) => filename.includes(part));
+    }
+
+    try {
+      const regexPattern = pattern.replaceAll('.', String.raw`\.`).replaceAll('*', '.*');
+      const regex = new RegExp(`^${regexPattern}$`);
+      return regex.test(filename);
+    } catch {
+      // Invalid regex pattern, fall back to simple includes
+      return filename.includes(pattern);
+    }
   }
 
   /**
@@ -390,7 +432,14 @@ class ScopeSync {
     const files = [];
 
     async function walk(currentDir) {
-      const entries = await fs.readdir(currentDir, { withFileTypes: true });
+      // Wrap fs.readdir in try-catch for defensive error handling
+      let entries;
+      try {
+        entries = await fs.readdir(currentDir, { withFileTypes: true });
+      } catch {
+        // If directory is inaccessible, skip it
+        return;
+      }
 
       for (const entry of entries) {
         const fullPath = path.join(currentDir, entry.name);

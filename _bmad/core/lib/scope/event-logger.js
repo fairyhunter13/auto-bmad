@@ -1,4 +1,5 @@
 const path = require('node:path');
+const crypto = require('node:crypto');
 const fs = require('fs-extra');
 const yaml = require('yaml');
 const { StateLock } = require('./state-lock');
@@ -66,12 +67,12 @@ class EventLogger {
   }
 
   /**
-   * Generate unique event ID
+   * Generate unique event ID using cryptographically secure random bytes
    * @returns {string} Event ID
    */
   generateEventId() {
     const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).slice(2, 8);
+    const random = crypto.randomBytes(6).toString('hex');
     return `evt_${timestamp}_${random}`;
   }
 
@@ -96,7 +97,12 @@ class EventLogger {
       let log;
       if (await fs.pathExists(this.eventLogPath)) {
         const content = await fs.readFile(this.eventLogPath, 'utf8');
-        log = yaml.parse(content) || { version: 1, events: [] };
+        try {
+          log = yaml.parse(content) || { version: 1, events: [] };
+        } catch {
+          // If YAML is malformed, reinitialize the log
+          log = { version: 1, events: [] };
+        }
       } else {
         // Create parent directory and initialize
         await fs.ensureDir(path.dirname(this.eventLogPath));
@@ -131,7 +137,8 @@ class EventLogger {
   async getEvents(scopeId = null, options = {}) {
     try {
       const content = await fs.readFile(this.eventLogPath, 'utf8');
-      const log = yaml.parse(content);
+      // Guard against null/undefined from yaml.parse (empty YAML files)
+      const log = yaml.parse(content) || {};
       let events = log.events || [];
 
       // Filter by scope
@@ -144,19 +151,25 @@ class EventLogger {
         events = events.filter((e) => e.type === options.type);
       }
 
-      // Filter by time range
+      // Filter by time range - validate dates before filtering
       if (options.since) {
         const sinceDate = new Date(options.since);
-        events = events.filter((e) => new Date(e.timestamp) >= sinceDate);
+        // Only filter if date is valid
+        if (!isNaN(sinceDate.getTime())) {
+          events = events.filter((e) => new Date(e.timestamp) >= sinceDate);
+        }
       }
 
       if (options.until) {
         const untilDate = new Date(options.until);
-        events = events.filter((e) => new Date(e.timestamp) <= untilDate);
+        // Only filter if date is valid
+        if (!isNaN(untilDate.getTime())) {
+          events = events.filter((e) => new Date(e.timestamp) <= untilDate);
+        }
       }
 
-      // Limit results
-      if (options.limit) {
+      // Limit results - validate limit is a positive integer
+      if (options.limit && Number.isInteger(options.limit) && options.limit > 0) {
         events = events.slice(-options.limit);
       }
 
@@ -175,8 +188,16 @@ class EventLogger {
    */
   async subscribe(subscriberScope, watchScope, patterns = ['*'], options = {}) {
     return this.stateLock.withLock(this.subscriptionsPath, async () => {
-      const content = await fs.readFile(this.subscriptionsPath, 'utf8');
-      const subs = yaml.parse(content);
+      let subs = { version: 1, subscriptions: {} };
+      try {
+        const content = await fs.readFile(this.subscriptionsPath, 'utf8');
+        const parsed = yaml.parse(content);
+        if (parsed && parsed.subscriptions) {
+          subs = parsed;
+        }
+      } catch {
+        // File doesn't exist or is malformed, use default
+      }
 
       // Initialize subscriber if not exists
       if (!subs.subscriptions[subscriberScope]) {
@@ -213,10 +234,18 @@ class EventLogger {
    */
   async unsubscribe(subscriberScope, watchScope) {
     return this.stateLock.withLock(this.subscriptionsPath, async () => {
-      const content = await fs.readFile(this.subscriptionsPath, 'utf8');
-      const subs = yaml.parse(content);
+      let subs = { version: 1, subscriptions: {} };
+      try {
+        const content = await fs.readFile(this.subscriptionsPath, 'utf8');
+        const parsed = yaml.parse(content);
+        if (parsed && parsed.subscriptions) {
+          subs = parsed;
+        }
+      } catch {
+        // File doesn't exist or is malformed, use default
+      }
 
-      if (subs.subscriptions[subscriberScope]) {
+      if (subs.subscriptions && subs.subscriptions[subscriberScope]) {
         subs.subscriptions[subscriberScope].watch = subs.subscriptions[subscriberScope].watch.filter((w) => w.scope !== watchScope);
       }
 
@@ -232,8 +261,9 @@ class EventLogger {
   async getSubscriptions(scopeId) {
     try {
       const content = await fs.readFile(this.subscriptionsPath, 'utf8');
-      const subs = yaml.parse(content);
-      return subs.subscriptions[scopeId] || { watch: [], notify: true };
+      // Guard against null/undefined from yaml.parse (empty YAML files)
+      const subs = yaml.parse(content) || {};
+      return subs.subscriptions?.[scopeId] || { watch: [], notify: true };
     } catch {
       return { watch: [], notify: true };
     }
@@ -257,19 +287,22 @@ class EventLogger {
       const notifications = [];
 
       for (const watch of subs.watch) {
+        // Guard against undefined/null patterns
+        const patterns = watch.patterns || [];
+
         const events = await this.getEvents(watch.scope, {
           since: since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last 24h default
         });
 
         for (const event of events) {
           // Check if event matches any pattern
-          const matches = watch.patterns.some((pattern) => this.matchesPattern(event.data?.artifact, pattern));
+          const matches = patterns.some((pattern) => this.matchesPattern(event.data?.artifact, pattern));
 
-          if (matches || watch.patterns.includes('*')) {
+          if (matches || patterns.includes('*')) {
             notifications.push({
               ...event,
               watchedBy: scopeId,
-              pattern: watch.patterns,
+              pattern: patterns,
             });
           }
         }
@@ -292,11 +325,25 @@ class EventLogger {
    */
   matchesPattern(artifact, pattern) {
     if (!artifact) return false;
+    if (!pattern || typeof pattern !== 'string') return false;
     if (pattern === '*') return true;
 
-    const regexPattern = pattern.replaceAll('.', String.raw`\.`).replaceAll('*', '.*');
-    const regex = new RegExp(regexPattern);
-    return regex.test(artifact);
+    // ReDoS protection: limit wildcards to prevent catastrophic backtracking
+    const wildcardCount = (pattern.match(/\*/g) || []).length;
+    if (wildcardCount > 3) {
+      // For patterns with many wildcards, fall back to simple includes check
+      const parts = pattern.split('*').filter(Boolean);
+      return parts.every((part) => artifact.includes(part));
+    }
+
+    try {
+      const regexPattern = pattern.replaceAll('.', String.raw`\.`).replaceAll('*', '.*');
+      const regex = new RegExp(regexPattern);
+      return regex.test(artifact);
+    } catch {
+      // Invalid regex pattern, fall back to simple includes
+      return artifact.includes(pattern);
+    }
   }
 
   /**

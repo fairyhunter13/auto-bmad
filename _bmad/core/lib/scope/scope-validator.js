@@ -194,6 +194,11 @@ class ScopeValidator {
   validateConfig(config) {
     const errors = [];
 
+    // Guard against null/undefined config from yaml.parse
+    if (!config || typeof config !== 'object') {
+      return { valid: false, errors: ['Configuration is null, undefined, or not an object'] };
+    }
+
     // Validate version
     if (!config.version || typeof config.version !== 'number') {
       errors.push('Configuration version is required and must be a number');
