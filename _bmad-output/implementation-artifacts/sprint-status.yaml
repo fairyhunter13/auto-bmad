@@ -49,16 +49,16 @@ development_status:
   # Stories created: 2026-01-22
   # ============================================================================
   epic-1: in-progress
-  1-1-initialize-monorepo-with-electron-vite-and-golang: review
-  1-2-implement-json-rpc-server-foundation: review
-  1-3-create-electron-ipc-bridge: review
-  1-4-detect-and-validate-opencode-cli: ready-for-dev
-  1-5-detect-opencode-profiles: ready-for-dev
-  1-6-detect-git-installation: ready-for-dev
-  1-7-detect-bmad-project-structure: ready-for-dev
-  1-8-project-folder-selection-ui: ready-for-dev
-  1-9-settings-persistence: ready-for-dev
-  1-10-network-status-detection: ready-for-dev
+  1-1-initialize-monorepo-with-electron-vite-and-golang: in-progress
+  1-2-implement-json-rpc-server-foundation: done
+  1-3-create-electron-ipc-bridge: done
+  1-4-detect-and-validate-opencode-cli: review
+  1-5-detect-opencode-profiles: review
+  1-6-detect-git-installation: review
+  1-7-detect-bmad-project-structure: review
+  1-8-project-folder-selection-ui: review
+  1-9-settings-persistence: review
+  1-10-network-status-detection: review
   epic-1-retrospective: optional
 
   # ============================================================================

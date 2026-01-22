@@ -37,8 +37,26 @@ func main() {
 	// Register system handlers
 	server.RegisterSystemHandlers(srv)
 
+	// Register project handlers
+	server.RegisterProjectHandlers(srv)
+
+	// Register OpenCode handlers
+	server.RegisterOpenCodeHandlers(srv)
+
+	// Register settings handlers
+	if err := server.RegisterSettingsHandlers(srv); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to register settings handlers: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Create context that cancels on SIGTERM/SIGINT
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Register network handlers
+	server.RegisterNetworkHandlers(srv)
+
+	// Initialize network monitor (must be after handler registration)
+	server.InitNetworkMonitor(ctx, srv)
 	defer cancel()
 
 	// Handle graceful shutdown

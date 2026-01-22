@@ -120,6 +120,14 @@ function connectRpcClient(): void {
     console.log('[Main] RPC connection closed')
   })
 
+  // Forward server-initiated notifications to renderer
+  rpcClient.on('notification', (notification: { method?: string; params?: unknown }) => {
+    if (notification.method && mainWindow && !mainWindow.isDestroyed()) {
+      console.log('[Main] Forwarding notification:', notification.method)
+      mainWindow.webContents.send(`event:${notification.method}`, notification.params)
+    }
+  })
+
   rpcClient.connect(backend.stdin, backend.stdout)
   console.log('[Main] RPC client connected')
 }
@@ -147,6 +155,21 @@ function notifyBackendStatus(status: 'connected' | 'disconnected'): void {
  * Handle RPC calls from renderer via IPC.
  */
 function setupIpcHandlers(): void {
+  // Handle native folder selection dialog
+  ipcMain.handle('dialog:selectFolder', async () => {
+    const { dialog } = require('electron')
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select BMAD Project Folder'
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+
   // Handle JSON-RPC calls from renderer
   ipcMain.handle('rpc:call', async (_event, method: string, params?: unknown) => {
     if (!rpcClient?.isConnected()) {

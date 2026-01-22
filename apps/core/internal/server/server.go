@@ -44,6 +44,25 @@ func (s *Server) RegisterHandler(method string, handler Handler) {
 	s.handlers[method] = handler
 }
 
+// EmitEvent sends a server-initiated notification to the client.
+// Event names should follow the "resource.event" convention.
+// This sends a JSON-RPC notification (no ID, no response expected).
+func (s *Server) EmitEvent(event string, data interface{}) error {
+	notification := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  event,
+		"params":  data,
+	}
+
+	// Write using the framing protocol
+	if err := s.writer.writeJSON(notification); err != nil {
+		return err
+	}
+
+	s.logger.Printf("Event emitted: %s", event)
+	return nil
+}
+
 // Run starts the server loop, processing requests until the context is cancelled
 // or stdin is closed (EOF). Returns nil on clean shutdown, or an error otherwise.
 func (s *Server) Run(ctx context.Context) error {

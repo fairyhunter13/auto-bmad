@@ -1,6 +1,6 @@
 # Story 1.6: Detect Git Installation
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -27,24 +27,24 @@ So that **checkpoint commits and rollback features will work correctly**.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Implement Git detection in Golang** (AC: #1, #2)
-  - [ ] Create `internal/checkpoint/detector.go`
-  - [ ] Execute `git --version` and parse output
-  - [ ] Handle "command not found" error gracefully
-  - [ ] Return structured detection result
+- [x] **Task 1: Implement Git detection in Golang** (AC: #1, #2)
+  - [x] Create `internal/checkpoint/detector.go`
+  - [x] Execute `git --version` and parse output
+  - [x] Handle "command not found" error gracefully
+  - [x] Return structured detection result
 
-- [ ] **Task 2: Implement version parsing and comparison** (AC: #1)
-  - [ ] Parse version from output (e.g., "git version 2.39.0")
-  - [ ] Compare against minimum version (2.0)
-  - [ ] Return compatibility status
+- [x] **Task 2: Implement version parsing and comparison** (AC: #1)
+  - [x] Parse version from output (e.g., "git version 2.39.0")
+  - [x] Compare against minimum version (2.0)
+  - [x] Return compatibility status
 
-- [ ] **Task 3: Integrate with detectDependencies handler** (AC: #1)
-  - [ ] Add Git result to existing handler from Story 1.4
-  - [ ] Return both OpenCode and Git status
+- [x] **Task 3: Integrate with detectDependencies handler** (AC: #1)
+  - [x] Add Git result to existing handler from Story 1.4
+  - [x] Return both OpenCode and Git status
 
-- [ ] **Task 4: Update frontend types** (AC: all)
-  - [ ] Add GitDetection type to DependencyDetectionResult
-  - [ ] Update UI to display Git status
+- [x] **Task 4: Update frontend types** (AC: all)
+  - [x] Add GitDetection type to DependencyDetectionResult
+  - [x] Update UI to display Git status
 
 ## Dev Notes
 
@@ -217,13 +217,35 @@ apps/core/internal/
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-3-7-sonnet-20250219
 
 ### Completion Notes List
 
-- 
+- ✅ Implemented Git detection in `internal/checkpoint/detector.go` following the same pattern as OpenCode detection
+- ✅ Created comprehensive unit tests for version parsing, comparison logic, and detection flow
+- ✅ Integrated Git detection into existing `project.detectDependencies` handler alongside OpenCode detection
+- ✅ Updated frontend TypeScript types to include Git detection results (made `git` field required in `DependencyDetectionResult`)
+- ✅ All tests passing: Go tests (checkpoint, server packages) and TypeScript type checking
+- ✅ Security compliance: No credential access, Git operations use system credentials transparently (NFR-S1, NFR-I7)
+- ✅ Version comparison supports Git 2.0+ requirement with flexible parsing (handles various Git output formats)
+- ✅ Error handling implemented for Git not found and version check failures
+
+### File List
+
+**Created:**
+- `apps/core/internal/checkpoint/detector.go` - Git detection implementation
+- `apps/core/internal/checkpoint/detector_test.go` - Comprehensive unit tests
+
+**Modified:**
+- `apps/core/internal/server/project_handlers.go` - Added Git detection to handler
+- `apps/core/internal/server/project_handlers_test.go` - Updated tests to verify Git result
+- `apps/desktop/src/renderer/src/types/dependencies.ts` - Made `git` field required, added documentation
+- `apps/desktop/src/preload/index.ts` - Made `git` field required in API type
+- `apps/desktop/src/preload/index.d.ts` - Made `git` field required in type declaration
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` - Updated story status to in-progress
 
 ### Change Log
 
 | Date | Change | Reason |
 |------|--------|--------|
+| 2026-01-23 | Initial implementation of Git detection | Story 1-6 implementation complete |
