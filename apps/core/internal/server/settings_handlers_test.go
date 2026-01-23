@@ -13,16 +13,14 @@ import (
 
 // TestRegisterSettingsHandlers verifies handler registration
 func TestRegisterSettingsHandlers(t *testing.T) {
-	// Override home directory for test
+	// Use temp directory as project path
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
 
-	// Create server
-	srv := New(nil, nil, log.New(io.Discard, "", 0))
+	// Create server with same project path (don't use newTestServer which creates its own tmpDir)
+	srv := New(nil, nil, log.New(io.Discard, "", 0), tmpDir)
 
-	// Register handlers
-	if err := RegisterSettingsHandlers(srv); err != nil {
+	// Register handlers with project path
+	if err := RegisterSettingsHandlers(srv, tmpDir); err != nil {
 		t.Fatalf("RegisterSettingsHandlers failed: %v", err)
 	}
 
@@ -43,13 +41,11 @@ func TestRegisterSettingsHandlers(t *testing.T) {
 
 // TestSettingsGetHandler verifies settings.get returns default settings
 func TestSettingsGetHandler(t *testing.T) {
-	// Override home directory for test
+	// Use temp directory as project path
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
 
-	srv := New(nil, nil, log.New(io.Discard, "", 0))
-	if err := RegisterSettingsHandlers(srv); err != nil {
+	srv := New(nil, nil, log.New(io.Discard, "", 0), tmpDir)
+	if err := RegisterSettingsHandlers(srv, tmpDir); err != nil {
 		t.Fatalf("RegisterSettingsHandlers failed: %v", err)
 	}
 
@@ -81,13 +77,15 @@ func TestSettingsGetHandler(t *testing.T) {
 
 // TestSettingsSetHandler verifies settings.set updates and persists settings
 func TestSettingsSetHandler(t *testing.T) {
-	// Override home directory for test
+	// Use temp directory as project path
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Logf("tmpDir = %s", tmpDir)
+	t.Logf("srv.ProjectPath() = will check after creation")
 
-	srv := New(nil, nil, log.New(io.Discard, "", 0))
-	if err := RegisterSettingsHandlers(srv); err != nil {
+	srv := New(nil, nil, log.New(io.Discard, "", 0), tmpDir)
+	t.Logf("srv.ProjectPath() = %s", srv.ProjectPath())
+
+	if err := RegisterSettingsHandlers(srv, tmpDir); err != nil {
 		t.Fatalf("RegisterSettingsHandlers failed: %v", err)
 	}
 
@@ -122,8 +120,29 @@ func TestSettingsSetHandler(t *testing.T) {
 		t.Errorf("Theme = %q, want \"dark\"", settings.Theme)
 	}
 
-	// Verify persistence
-	configPath := filepath.Join(tmpDir, ".autobmad", "_bmad-output", ".autobmad", "config.json")
+	// Verify persistence (new path: <project>/_bmad-output/.autobmad/config.json)
+	configDir := filepath.Join(tmpDir, "_bmad-output", ".autobmad")
+	configPath := filepath.Join(configDir, "config.json")
+
+	// List what's actually in tmpDir
+	entries, _ := os.ReadDir(tmpDir)
+	t.Logf("Contents of %s:", tmpDir)
+	for _, e := range entries {
+		t.Logf("  - %s (isDir: %v)", e.Name(), e.IsDir())
+		if e.IsDir() {
+			subEntries, _ := os.ReadDir(filepath.Join(tmpDir, e.Name()))
+			for _, se := range subEntries {
+				t.Logf("    - %s/%s (isDir: %v)", e.Name(), se.Name(), se.IsDir())
+				if se.IsDir() {
+					subSubEntries, _ := os.ReadDir(filepath.Join(tmpDir, e.Name(), se.Name()))
+					for _, sse := range subSubEntries {
+						t.Logf("      - %s/%s/%s", e.Name(), se.Name(), sse.Name())
+					}
+				}
+			}
+		}
+	}
+
 	if _, err := os.Stat(configPath); err != nil {
 		t.Errorf("Config file not saved: %v", err)
 	}
@@ -131,13 +150,11 @@ func TestSettingsSetHandler(t *testing.T) {
 
 // TestSettingsSetInvalidJSON verifies error handling for invalid params
 func TestSettingsSetInvalidJSON(t *testing.T) {
-	// Override home directory for test
+	// Use temp directory as project path
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
 
-	srv := New(nil, nil, log.New(io.Discard, "", 0))
-	if err := RegisterSettingsHandlers(srv); err != nil {
+	srv := New(nil, nil, log.New(io.Discard, "", 0), tmpDir)
+	if err := RegisterSettingsHandlers(srv, tmpDir); err != nil {
 		t.Fatalf("RegisterSettingsHandlers failed: %v", err)
 	}
 
@@ -159,13 +176,11 @@ func TestSettingsSetInvalidJSON(t *testing.T) {
 
 // TestSettingsResetHandler verifies settings.reset restores defaults
 func TestSettingsResetHandler(t *testing.T) {
-	// Override home directory for test
+	// Use temp directory as project path
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
 
-	srv := New(nil, nil, log.New(io.Discard, "", 0))
-	if err := RegisterSettingsHandlers(srv); err != nil {
+	srv := New(nil, nil, log.New(io.Discard, "", 0), tmpDir)
+	if err := RegisterSettingsHandlers(srv, tmpDir); err != nil {
 		t.Fatalf("RegisterSettingsHandlers failed: %v", err)
 	}
 

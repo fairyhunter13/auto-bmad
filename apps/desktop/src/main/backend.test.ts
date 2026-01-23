@@ -72,6 +72,7 @@ class MockChildProcess extends EventEmitter {
 describe('BackendProcess', () => {
   let backend: BackendProcess
   let mockProcess: MockChildProcess
+  const TEST_PROJECT_PATH = '/tmp/test-project'
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -104,11 +105,11 @@ describe('BackendProcess', () => {
 
   describe('spawn', () => {
     it('should spawn the process with correct options', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       expect(spawn).toHaveBeenCalledWith(
         expect.stringContaining('autobmad-'),
-        [],
+        ['--project-path', TEST_PROJECT_PATH],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe']
         })
@@ -119,7 +120,7 @@ describe('BackendProcess', () => {
       const handler = vi.fn()
       backend.on('spawn', handler)
 
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       expect(handler).toHaveBeenCalled()
     })
@@ -127,22 +128,22 @@ describe('BackendProcess', () => {
     it('should set isRunning to true', async () => {
       expect(backend.isRunning()).toBe(false)
 
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       expect(backend.isRunning()).toBe(true)
     })
 
     it('should not spawn if already running', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       // Second spawn should be a no-op
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       expect(spawn).toHaveBeenCalledTimes(1)
     })
 
     it('should provide stdin and stdout streams', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       expect(backend.stdin).toBeDefined()
       expect(backend.stdout).toBeDefined()
@@ -151,7 +152,7 @@ describe('BackendProcess', () => {
 
   describe('crash detection', () => {
     it('should emit crash event on process error', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const crashHandler = vi.fn()
       backend.on('crash', crashHandler)
@@ -162,7 +163,7 @@ describe('BackendProcess', () => {
     })
 
     it('should emit crash event on unexpected exit', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const crashHandler = vi.fn()
       backend.on('crash', crashHandler)
@@ -173,7 +174,7 @@ describe('BackendProcess', () => {
     })
 
     it('should emit exit event with code and signal', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const exitHandler = vi.fn()
       backend.on('exit', exitHandler)
@@ -186,7 +187,7 @@ describe('BackendProcess', () => {
 
   describe('shutdown', () => {
     it('should send SIGTERM', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const shutdownPromise = backend.shutdown()
 
@@ -199,7 +200,7 @@ describe('BackendProcess', () => {
     })
 
     it('should not emit crash event during shutdown', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const crashHandler = vi.fn()
       backend.on('crash', crashHandler)
@@ -212,7 +213,7 @@ describe('BackendProcess', () => {
     })
 
     it('should set isRunning to false after shutdown', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
       expect(backend.isRunning()).toBe(true)
 
       const shutdownPromise = backend.shutdown()
@@ -230,7 +231,7 @@ describe('BackendProcess', () => {
 
   describe('stderr handling', () => {
     it('should emit stderr event when stderr data is received', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const stderrHandler = vi.fn()
       backend.on('stderr', stderrHandler)
@@ -242,7 +243,7 @@ describe('BackendProcess', () => {
     })
 
     it('should trim stderr messages', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       const stderrHandler = vi.fn()
       backend.on('stderr', stderrHandler)
@@ -255,7 +256,7 @@ describe('BackendProcess', () => {
 
   describe('restart scheduling', () => {
     it('should schedule restart after crash', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
       const initialCallCount = (spawn as Mock).mock.calls.length
 
       // Simulate crash
@@ -274,7 +275,7 @@ describe('BackendProcess', () => {
     })
 
     it('should not restart during shutdown', async () => {
-      await backend.spawn()
+      await backend.spawn(TEST_PROJECT_PATH)
 
       // Start shutdown
       const shutdownPromise = backend.shutdown()

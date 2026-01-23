@@ -15,7 +15,7 @@ func TestErrorCode32700ParseError(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -67,7 +67,7 @@ func TestErrorCode32600InvalidRequest(t *testing.T) {
 			stdinR, stdinW := io.Pipe()
 			stdoutR, stdoutW := io.Pipe()
 
-			server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+			server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -96,7 +96,7 @@ func TestErrorCode32601MethodNotFound(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	// No handlers registered
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -124,7 +124,7 @@ func TestErrorCode32602InvalidParams(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("test.requiresParams", func(params json.RawMessage) (interface{}, error) {
 		// This handler explicitly returns InvalidParams error
 		return nil, NewError(ErrCodeInvalidParams, "missing required parameter 'name'")
@@ -155,7 +155,7 @@ func TestErrorCode32603InternalError(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("test.fails", func(params json.RawMessage) (interface{}, error) {
 		// Return a generic error (not a JSON-RPC Error type)
 		return nil, io.ErrUnexpectedEOF
@@ -186,7 +186,7 @@ func TestErrorResponseStructure(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

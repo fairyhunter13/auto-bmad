@@ -38,7 +38,7 @@ func TestHandleNetworkGetStatus_WithServer(t *testing.T) {
 	stdinR, _ := io.Pipe()
 	_, stdoutW := io.Pipe()
 
-	srv := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	srv := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	RegisterNetworkHandlers(srv)
 
 	// Verify handler is registered

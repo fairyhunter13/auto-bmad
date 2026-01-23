@@ -18,7 +18,7 @@ func TestLoggingIncludesRequestMethod(t *testing.T) {
 	stdoutR, stdoutW := io.Pipe()
 	stderr := &bytes.Buffer{}
 
-	server := New(stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
+	server := newTestServer(t, stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -43,7 +43,7 @@ func TestLoggingIncludesRequestID(t *testing.T) {
 	stdoutR, stdoutW := io.Pipe()
 	stderr := &bytes.Buffer{}
 
-	server := New(stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
+	server := newTestServer(t, stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -68,7 +68,7 @@ func TestLoggingIncludesTimestamp(t *testing.T) {
 	stderr := &bytes.Buffer{}
 
 	// Use LstdFlags which includes timestamp
-	server := New(stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
+	server := newTestServer(t, stdinR, stdoutW, log.New(stderr, "[RPC] ", log.LstdFlags))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,7 +96,7 @@ func TestLoggingForErrorResponses(t *testing.T) {
 
 	writeLogTestFrame(stdin, `{"jsonrpc":"2.0","method":"unknown","id":1}`)
 
-	server := New(stdin, stdout, log.New(stderr, "[RPC] ", 0))
+	server := newTestServer(t, stdin, stdout, log.New(stderr, "[RPC] ", 0))
 	// No handlers registered - will get method not found
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -121,7 +121,7 @@ func TestStdoutOnlyContainsJSONRPC(t *testing.T) {
 
 	writeLogTestFrame(stdin, `{"jsonrpc":"2.0","method":"system.ping","id":1}`)
 
-	server := New(stdin, stdout, log.New(stderr, "[RPC] ", 0))
+	server := newTestServer(t, stdin, stdout, log.New(stderr, "[RPC] ", 0))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

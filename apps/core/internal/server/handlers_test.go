@@ -14,7 +14,7 @@ func TestSystemPingHandler(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -63,7 +63,7 @@ func TestSystemPingPreservesID(t *testing.T) {
 			stdinR, stdinW := io.Pipe()
 			stdoutR, stdoutW := io.Pipe()
 
-			server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+			server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 			RegisterSystemHandlers(server)
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -86,7 +86,7 @@ func TestSystemEchoHandler(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	RegisterSystemHandlers(server)
 
 	ctx, cancel := context.WithCancel(context.Background())

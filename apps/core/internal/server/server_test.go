@@ -13,11 +13,18 @@ import (
 	"time"
 )
 
+// newTestServer creates a test server with temporary project directory
+func newTestServer(t *testing.T, stdin io.Reader, stdout io.Writer, logger *log.Logger) *Server {
+	t.Helper()
+	projectPath := t.TempDir()
+	return New(stdin, stdout, logger, projectPath)
+}
+
 func TestServerHandlesSingleRequest(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("test.echo", func(params json.RawMessage) (interface{}, error) {
 		return "echoed", nil
 	})
@@ -49,7 +56,7 @@ func TestServerMethodNotFound(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	// No handlers registered
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -93,7 +100,7 @@ func TestServerInvalidRequest(t *testing.T) {
 			stdinR, stdinW := io.Pipe()
 			stdoutR, stdoutW := io.Pipe()
 
-			server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+			server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -118,7 +125,7 @@ func TestServerParseError(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -142,7 +149,7 @@ func TestServerMultipleRequests(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("add", func(params json.RawMessage) (interface{}, error) {
 		return "added", nil
 	})
@@ -177,7 +184,7 @@ func TestServerNotificationNoResponse(t *testing.T) {
 	stdout := &bytes.Buffer{}
 
 	called := make(chan struct{}, 1)
-	server := New(stdin, stdout, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdin, stdout, log.New(io.Discard, "", 0))
 	server.RegisterHandler("log.info", func(params json.RawMessage) (interface{}, error) {
 		called <- struct{}{}
 		return nil, nil
@@ -226,7 +233,7 @@ func TestServerPreservesRequestID(t *testing.T) {
 			stdinR, stdinW := io.Pipe()
 			stdoutR, stdoutW := io.Pipe()
 
-			server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+			server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 			server.RegisterHandler("test", func(params json.RawMessage) (interface{}, error) {
 				return "ok", nil
 			})
@@ -252,7 +259,7 @@ func TestServerNullIDResponse(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("test", func(params json.RawMessage) (interface{}, error) {
 		return "ok", nil
 	})
@@ -277,7 +284,7 @@ func TestServerGracefulShutdown(t *testing.T) {
 	stdoutR, stdoutW := io.Pipe()
 	_ = stdoutR // unused in this test
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -309,7 +316,7 @@ func TestServerEOFShutdown(t *testing.T) {
 	stdin := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 
-	server := New(stdin, stdout, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdin, stdout, log.New(io.Discard, "", 0))
 
 	// stdin is empty, so server should return immediately with nil (EOF = clean shutdown)
 	ctx := context.Background()
@@ -324,7 +331,7 @@ func TestServerLogsToStderr(t *testing.T) {
 	stdoutR, stdoutW := io.Pipe()
 	stderr := &bytes.Buffer{}
 
-	server := New(stdinR, stdoutW, log.New(stderr, "[RPC] ", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(stderr, "[RPC] ", 0))
 	server.RegisterHandler("test", func(params json.RawMessage) (interface{}, error) {
 		return "ok", nil
 	})
@@ -351,7 +358,7 @@ func TestServerHandlerError(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 
-	server := New(stdinR, stdoutW, log.New(io.Discard, "", 0))
+	server := newTestServer(t, stdinR, stdoutW, log.New(io.Discard, "", 0))
 	server.RegisterHandler("test.fail", func(params json.RawMessage) (interface{}, error) {
 		return nil, NewError(ErrCodeInvalidParams, "invalid parameter")
 	})

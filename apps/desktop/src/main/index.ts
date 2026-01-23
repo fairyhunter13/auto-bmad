@@ -63,6 +63,7 @@ function createWindow(): void {
 
 /**
  * Initialize the Golang backend process.
+ * Uses app userData directory as default project path until user selects a project.
  */
 async function initBackend(): Promise<void> {
   backend = new BackendProcess({
@@ -95,8 +96,13 @@ async function initBackend(): Promise<void> {
     console.log('[Backend]', data)
   })
 
+  // Use app userData directory as default project path
+  // This provides a default location for settings until user selects a project
+  const defaultProjectPath = app.getPath('userData')
+  console.log(`[Main] Using default project path: ${defaultProjectPath}`)
+
   // Spawn the backend
-  await backend.spawn()
+  await backend.spawn(defaultProjectPath)
 }
 
 /**

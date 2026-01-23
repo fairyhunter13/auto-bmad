@@ -23,8 +23,9 @@ func TestBinaryPingIntegration(t *testing.T) {
 	}
 	defer exec.Command("rm", "autobmad_test").Run()
 
-	// Start the binary
-	proc := exec.Command("./autobmad_test")
+	// Start the binary with test project path
+	testProjectPath := t.TempDir()
+	proc := exec.Command("./autobmad_test", "--project-path", testProjectPath)
 	stdin, err := proc.StdinPipe()
 	if err != nil {
 		t.Fatalf("failed to get stdin pipe: %v", err)
@@ -101,8 +102,9 @@ func TestBinaryGracefulShutdown(t *testing.T) {
 	}
 	defer exec.Command("rm", "autobmad_test").Run()
 
-	// Start the binary
-	proc := exec.Command("./autobmad_test")
+	// Start the binary with test project path
+	testProjectPath := t.TempDir()
+	proc := exec.Command("./autobmad_test", "--project-path", testProjectPath)
 	stdin, _ := proc.StdinPipe()
 
 	if err := proc.Start(); err != nil {

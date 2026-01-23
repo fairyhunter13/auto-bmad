@@ -17,22 +17,25 @@ type Handler func(params json.RawMessage) (interface{}, error)
 
 // Server represents the JSON-RPC server that communicates over stdio.
 type Server struct {
-	reader   *MessageReader
-	writer   *MessageWriter
-	handlers map[string]Handler
-	logger   *log.Logger
-	mu       sync.RWMutex // protects handlers map
+	reader      *MessageReader
+	writer      *MessageWriter
+	handlers    map[string]Handler
+	logger      *log.Logger
+	projectPath string       // Path to BMAD project root
+	mu          sync.RWMutex // protects handlers map
 }
 
 // New creates a new JSON-RPC server instance.
 // stdin and stdout are the I/O streams for JSON-RPC communication.
 // logger should write to stderr (stdout is reserved for JSON-RPC).
-func New(stdin io.Reader, stdout io.Writer, logger *log.Logger) *Server {
+// projectPath is the path to the BMAD project root (for project-local settings).
+func New(stdin io.Reader, stdout io.Writer, logger *log.Logger, projectPath string) *Server {
 	return &Server{
-		reader:   NewMessageReader(stdin),
-		writer:   NewMessageWriter(stdout),
-		handlers: make(map[string]Handler),
-		logger:   logger,
+		reader:      NewMessageReader(stdin),
+		writer:      NewMessageWriter(stdout),
+		handlers:    make(map[string]Handler),
+		logger:      logger,
+		projectPath: projectPath,
 	}
 }
 
@@ -42,6 +45,12 @@ func (s *Server) RegisterHandler(method string, handler Handler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[method] = handler
+}
+
+// ProjectPath returns the path to the BMAD project root.
+// This is used by handlers that need project-local storage (e.g., settings).
+func (s *Server) ProjectPath() string {
+	return s.projectPath
 }
 
 // EmitEvent sends a server-initiated notification to the client.

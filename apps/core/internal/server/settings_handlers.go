@@ -3,8 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/fairyhunter13/auto-bmad/apps/core/internal/state"
 )
@@ -14,20 +12,13 @@ var settingsManager *state.StateManager
 
 // RegisterSettingsHandlers registers all settings-related JSON-RPC handlers.
 // These handlers manage user settings persistence and retrieval.
-// Settings are stored globally (not per-project) to remember user preferences across sessions.
-func RegisterSettingsHandlers(s *Server) error {
-	// Use user's home directory for global settings
-	// This allows settings to persist across different projects
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("getting home directory: %w", err)
-	}
-
-	// Store settings in ~/.autobmad directory
-	settingsPath := filepath.Join(homeDir, ".autobmad")
-
-	// Create state manager
-	sm, err := state.NewStateManager(settingsPath)
+// Settings are stored per-project in <project>/_bmad-output/.autobmad/ to support
+// multi-project workflows where each project can have different settings.
+func RegisterSettingsHandlers(s *Server, projectPath string) error {
+	// Store settings in project-local directory per architecture.md specification
+	// Path: <project>/_bmad-output/.autobmad/config.json
+	// NewStateManager will append _bmad-output/.autobmad automatically
+	sm, err := state.NewStateManager(projectPath)
 	if err != nil {
 		return fmt.Errorf("creating state manager: %w", err)
 	}

@@ -50,6 +50,7 @@ export class BackendProcess extends EventEmitter {
   private restartTimer: NodeJS.Timeout | null = null
   private config: BackendConfig
   private mainWindow: BrowserWindow | null = null
+  private projectPath: string | null = null
 
   constructor(config: Partial<BackendConfig> = {}) {
     super()
@@ -81,7 +82,7 @@ export class BackendProcess extends EventEmitter {
   }
 
   /** Spawn the backend process */
-  async spawn(): Promise<void> {
+  async spawn(projectPath: string): Promise<void> {
     if (this.process) {
       console.warn('[Backend] Process already running')
       return
@@ -89,9 +90,13 @@ export class BackendProcess extends EventEmitter {
 
     const binaryPath = this.getBinaryPath()
     console.log(`[Backend] Spawning: ${binaryPath}`)
+    console.log(`[Backend] Project path: ${projectPath}`)
+
+    // Store project path for restarts
+    this.projectPath = projectPath
 
     try {
-      this.process = spawn(binaryPath, [], {
+      this.process = spawn(binaryPath, ['--project-path', projectPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env }
       })
@@ -175,7 +180,11 @@ export class BackendProcess extends EventEmitter {
     this.restartTimer = setTimeout(async () => {
       this.restartTimer = null
       try {
-        await this.spawn()
+        if (this.projectPath) {
+          await this.spawn(this.projectPath)
+        } else {
+          console.error('[Backend] Cannot restart: project path not set')
+        }
       } catch {
         // Spawn error already handled in spawn()
       }

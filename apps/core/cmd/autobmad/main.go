@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -21,6 +22,17 @@ var (
 )
 
 func main() {
+	// Parse command-line flags
+	projectPath := flag.String("project-path", "", "Path to BMAD project root (required)")
+	flag.Parse()
+
+	// Validate required project path
+	if *projectPath == "" {
+		fmt.Fprintln(os.Stderr, "Error: --project-path flag is required")
+		fmt.Fprintln(os.Stderr, "Usage: autobmad --project-path /path/to/project")
+		os.Exit(1)
+	}
+
 	// Create logger that writes to stderr (stdout is reserved for JSON-RPC)
 	logger := log.New(os.Stderr, "[RPC] ", log.LstdFlags)
 
@@ -29,10 +41,11 @@ func main() {
 
 	// Print version info to stderr
 	logger.Printf("AutoBMAD Core v%s (commit: %s, built: %s)", version, commit, date)
+	logger.Printf("Project path: %s", *projectPath)
 	logger.Println("Starting JSON-RPC server on stdio...")
 
-	// Create server
-	srv := server.New(os.Stdin, os.Stdout, logger)
+	// Create server with project path
+	srv := server.New(os.Stdin, os.Stdout, logger, *projectPath)
 
 	// Register system handlers
 	server.RegisterSystemHandlers(srv)
@@ -43,8 +56,8 @@ func main() {
 	// Register OpenCode handlers
 	server.RegisterOpenCodeHandlers(srv)
 
-	// Register settings handlers
-	if err := server.RegisterSettingsHandlers(srv); err != nil {
+	// Register settings handlers (settings are now project-local)
+	if err := server.RegisterSettingsHandlers(srv, *projectPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to register settings handlers: %v\n", err)
 		os.Exit(1)
 	}
