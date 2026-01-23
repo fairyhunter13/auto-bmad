@@ -1,5 +1,34 @@
 # Error Handling and Resilience Checks
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL test frameworks and programming languages.**
+
+The error handling and resilience testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] error handling testing [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] resilience testing patterns [CURRENT_YEAR]"
+```
+
+**Framework-specific error handling APIs:**
+| Framework | Uncaught Exception | Page Error | Console Error |
+|-----------|-------------------|------------|---------------|
+| Playwright | Custom | `page.on('pageerror')` | `page.on('console')` |
+| Cypress | `Cypress.on('uncaught:exception')` | `cy.on('uncaught:exception')` | `cy.spy(console)` |
+| Selenium | `WebDriverWait` exception handling | Custom listeners | Browser logs |
+| Puppeteer | `page.on('pageerror')` | `page.on('error')` | `page.on('console')` |
+
+**Universal error handling principles (ALL frameworks):**
+
+- Only ignore documented, expected errors
+- Rethrow unexpected errors (catch regressions)
+- Test retry/backoff logic by forcing sequential failures
+- Validate error UI and user experience
+- Log errors with context but redact secrets
+
 ## Principle
 
 Treat expected failures explicitly: intercept network errors, assert UI fallbacks (error messages visible, retries triggered), and use scoped exception handling to ignore known errors while catching regressions. Test retry/backoff logic by forcing sequential failures (500 → timeout → success) and validate telemetry logging. Log captured errors with context (request payload, user/session) but redact secrets to keep artifacts safe for sharing.

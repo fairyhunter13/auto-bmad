@@ -1,5 +1,37 @@
 # Fixtures Composition with mergeTests
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL test frameworks that support fixture composition.**
+
+The fixture composition principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] fixture composition [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] test setup reuse [CURRENT_YEAR]"
+```
+
+**Framework-specific fixture/setup composition:**
+| Framework | Fixture System | Composition Method |
+|-----------|----------------|-------------------|
+| Playwright | `test.extend()` | `mergeTests()` |
+| Cypress | Custom commands | `Cypress.Commands.add()` |
+| Jest | `beforeEach/afterEach` | Setup files, modules |
+| pytest | `@pytest.fixture` | `conftest.py` inheritance |
+| RSpec | `let`, `before` | Shared contexts, modules |
+| JUnit 5 | `@BeforeEach`, Extensions | `@ExtendWith` composition |
+| TestNG | `@BeforeMethod` | Listener inheritance |
+| Go test | Test helpers | Shared functions |
+
+**Universal fixture composition principles (ALL frameworks):**
+
+- Single entry point for all test utilities
+- Conflict resolution for overlapping fixtures
+- Type-safe access to composed fixtures
+- Maintainable fixture inheritance hierarchy
+
 ## Principle
 
 Combine multiple Playwright fixtures using `mergeTests` to create a unified test object with all capabilities. Build composable test infrastructure by merging playwright-utils fixtures with custom project fixtures.

@@ -3,13 +3,15 @@
 # Test Framework Setup
 
 **Workflow ID**: `_bmad/bmm/testarch/framework`
-**Version**: 4.0 (BMad v6)
+**Version**: 5.0 (BMad v6 - Language Agnostic)
 
 ---
 
 ## Overview
 
-Initialize a production-ready test framework architecture (Playwright or Cypress) with fixtures, helpers, configuration, and best practices. This workflow scaffolds the complete testing infrastructure for modern web applications.
+Initialize a production-ready test framework architecture with fixtures, helpers, configuration, and best practices. This workflow scaffolds the complete testing infrastructure for ANY programming language and test framework.
+
+**Language Agnostic**: This workflow detects the project's language and framework, then generates appropriate scaffolding using real-time documentation fetching.
 
 ---
 
@@ -17,9 +19,153 @@ Initialize a production-ready test framework architecture (Playwright or Cypress
 
 **Critical:** Verify these requirements before proceeding. If any fail, HALT and notify the user.
 
-- ✅ `package.json` exists in project root
-- ✅ No modern E2E test harness is already configured (check for existing `playwright.config.*` or `cypress.config.*`)
+- ✅ Project has identifiable language (package manifest, source files, or config)
+- ✅ No modern test harness is already configured for the detected framework
 - ✅ Architectural/stack context available (project type, bundler, dependencies)
+
+---
+
+## Step 0: Detect Project Environment (MANDATORY)
+
+### Purpose
+
+Identify the project's programming language, existing test framework (if any), and conventions before scaffolding. This enables language-agnostic test generation.
+
+### Actions
+
+1. **Detect Programming Language**
+
+   Scan project root for language indicators:
+   - Check for package/manifest files (see `detection/language-hints.yaml`)
+   - Identify primary language from file extensions
+   - Note if multiple languages exist (e.g., TypeScript frontend + Python backend)
+
+   **Common Detection Patterns:**
+   | Files Found | Language |
+   |-------------|----------|
+   | package.json, tsconfig.json | TypeScript |
+   | package.json (no tsconfig) | JavaScript |
+   | requirements.txt, pyproject.toml | Python |
+   | go.mod | Go |
+   | Cargo.toml | Rust |
+   | pom.xml, build.gradle | Java/Kotlin |
+   | \*.csproj | C#/.NET |
+   | Gemfile | Ruby |
+   | composer.json | PHP |
+
+2. **Check for Existing Test Framework**
+
+   Search for test configuration files:
+   - `playwright.config.*`, `cypress.config.*` → E2E frameworks
+   - `jest.config.*`, `vitest.config.*` → Unit test frameworks
+   - `pytest.ini`, `conftest.py` → Python testing
+   - `*_test.go` files → Go testing
+   - Other framework-specific configs (see `language-hints.yaml`)
+
+   **If found:** HALT with message: "Existing test framework detected: [framework]. Use workflow `test-review` to audit or manually extend."
+
+3. **Detect Project Conventions**
+
+   If existing test files found:
+   - Note directory structure (tests/, **tests**/, spec/, etc.)
+   - Identify naming patterns (_.spec._, _.test._, _\_test._)
+   - Check import/module style
+   - Note assertion library preferences
+
+4. **Web Fetch Latest Documentation (MANDATORY - Use NOW())**
+
+   Before generating ANY scaffolding:
+
+   ```
+   ============================================================
+   CRITICAL: Fetch with CURRENT TIMESTAMP - NOW()
+   ============================================================
+
+   1. Record fetch timestamp: fetch_time = NOW()
+      - Use ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ
+      - Example: 2026-01-23T14:30:00Z
+
+   2. Include timestamp in ALL web searches:
+      - "[framework] official documentation January 2026"
+      - "[framework] best practices 2026"
+      - "[framework] latest version changelog"
+
+   3. Fetch for detected/selected framework:
+      - Installation guide (current version)
+      - Configuration reference (current API)
+      - Best practices / getting started
+      - Breaking changes / migration guides
+
+   4. Verify freshness:
+      - Check documentation date/version
+      - Look for "last updated" indicators
+      - Prefer official sources over cached/archived pages
+
+   5. If fetch fails:
+      - Retry with alternative search terms
+      - Try GitHub repository directly
+      - Mark output as "[UNVERIFIED]" if all fetches fail
+
+   WHY NOW() IS REQUIRED:
+   - Framework APIs change frequently
+   - Best practices evolve monthly
+   - Yesterday's patterns may be deprecated today
+   - Each workflow run must get fresh data
+   ```
+
+5. **Record Detection Results**
+
+   Store for use in subsequent steps (include fetch timestamp):
+
+   ```yaml
+   detected:
+     detection_timestamp: '{NOW() in ISO 8601}' # REQUIRED
+     language: '{language}'
+     language_version: '{version if detectable}'
+     existing_framework: '{framework or none}'
+     test_directory: '{existing test dir or default}'
+     naming_convention: '{pattern}'
+     docs_fetched:
+       - url: '{official docs url}'
+         fetched_at: '{NOW() timestamp}' # REQUIRED
+         verified: true/false
+   ```
+
+   REQUIRED: Fetch current documentation for detected/selected framework
+   1. Identify framework (from detection or user selection)
+   2. Web fetch official documentation:
+      - Installation guide
+      - Configuration reference
+      - Best practices / getting started
+   3. Check for latest version and breaking changes
+   4. Note any deprecation warnings
+
+   Example searches:
+   - "[framework] official documentation [year]"
+   - "[framework] configuration reference"
+   - "[framework] v[version] migration guide"
+
+   ```
+
+   ```
+
+6. **Record Detection Results**
+
+   Store for use in subsequent steps:
+
+   ```yaml
+   detected:
+     language: '{language}'
+     language_version: '{version if detectable}'
+     existing_framework: '{framework or none}'
+     test_directory: '{existing test dir or default}'
+     naming_convention: '{pattern}'
+     docs_fetched:
+       - url: '{official docs url}'
+         fetched_at: '{timestamp}'
+   ```
+
+**Halt Condition:** If language cannot be detected and user doesn't provide guidance, HALT with message: "Unable to detect project language. Please specify the primary language and preferred test framework."
 
 ---
 
@@ -51,114 +197,106 @@ Initialize a production-ready test framework architecture (Playwright or Cypress
 
 ### Actions
 
-1. **Framework Selection**
+1. **Framework Selection (Language-Aware)**
 
-   **Default Logic:**
-   - **Playwright** (recommended for):
-     - Large repositories (100+ files)
-     - Performance-critical applications
-     - Multi-browser support needed
-     - Complex user flows requiring video/trace debugging
-     - Projects requiring worker parallelism
+   Based on detected language from Step 0, recommend appropriate test frameworks:
 
-   - **Cypress** (recommended for):
-     - Small teams prioritizing developer experience
-     - Component testing focus
-     - Real-time reloading during test development
-     - Simpler setup requirements
+   **Framework Selection by Language:**
 
-   **Detection Strategy:**
-   - Check `package.json` for existing preference
-   - Consider `project_size` variable from workflow config
-   - Use `framework_preference` variable if set
-   - Default to **Playwright** if uncertain
+   | Language      | E2E/Integration      | Unit/Component        | Recommended Default |
+   | ------------- | -------------------- | --------------------- | ------------------- |
+   | TypeScript/JS | Playwright, Cypress  | Jest, Vitest          | Playwright + Vitest |
+   | Python        | Playwright, Selenium | pytest                | pytest + Playwright |
+   | Java          | Selenium, Playwright | JUnit 5, TestNG       | JUnit 5 + Selenium  |
+   | C#            | Playwright, Selenium | xUnit, NUnit          | xUnit + Playwright  |
+   | Go            | Chromedp, Rod        | testing (built-in)    | testing + testify   |
+   | Ruby          | Capybara, Selenium   | RSpec, Minitest       | RSpec + Capybara    |
+   | Rust          | -                    | cargo test (built-in) | cargo test          |
+   | PHP           | Codeception, Panther | PHPUnit, Pest         | PHPUnit/Pest        |
+
+   **Selection Strategy:**
+   1. Check detected language from Step 0
+   2. Check for existing framework preferences in dependencies
+   3. Consider project type (web app, API, CLI, library)
+   4. Ask user if multiple valid options exist
+   5. **CRITICAL**: Web fetch latest docs for selected framework before generating config
 
 2. **Create Directory Structure**
 
+   Generate structure appropriate for detected language:
+
+   **Universal Pattern (adapt naming to language conventions):**
+
    ```
    {project-root}/
-   ├── tests/                        # Root test directory
-   │   ├── e2e/                      # Test files (users organize as needed)
-   │   ├── support/                  # Framework infrastructure (key pattern)
+   ├── tests/                        # Root test directory (or language convention)
+   │   ├── e2e/                      # End-to-end tests
+   │   ├── integration/              # Integration tests
+   │   ├── unit/                     # Unit tests
+   │   ├── support/                  # Framework infrastructure
    │   │   ├── fixtures/             # Test fixtures (data, mocks)
    │   │   ├── helpers/              # Utility functions
-   │   │   └── page-objects/         # Page object models (optional)
+   │   │   └── factories/            # Data factories
    │   └── README.md                 # Test suite documentation
    ```
 
-   **Note**: Users organize test files (e2e/, api/, integration/, component/) as needed. The **support/** folder is the critical pattern for fixtures and helpers used across tests.
+   **Language-Specific Conventions:**
+   - **Python**: `tests/`, `conftest.py` for fixtures
+   - **Go**: `*_test.go` files alongside source, `testdata/` directory
+   - **Java**: `src/test/java/`, `src/test/resources/`
+   - **Ruby**: `spec/` for RSpec, `test/` for Minitest
+   - **Rust**: `tests/` for integration, inline `#[cfg(test)]` for unit
 
-3. **Generate Configuration File**
+3. **Generate Configuration File (Framework-Specific)**
 
-   **For Playwright** (`playwright.config.ts` or `playwright.config.js`):
+   **CRITICAL**: Use freshly fetched documentation to generate config.
+   Do NOT rely on memorized examples - APIs and best practices change.
 
-   ```typescript
-   import { defineConfig, devices } from '@playwright/test';
+   **Generation Process:**
 
-   export default defineConfig({
-     testDir: './tests/e2e',
-     fullyParallel: true,
-     forbidOnly: !!process.env.CI,
-     retries: process.env.CI ? 2 : 0,
-     workers: process.env.CI ? 1 : undefined,
-
-     timeout: 60 * 1000, // Test timeout: 60s
-     expect: {
-       timeout: 15 * 1000, // Assertion timeout: 15s
-     },
-
-     use: {
-       baseURL: process.env.BASE_URL || 'http://localhost:3000',
-       trace: 'retain-on-failure',
-       screenshot: 'only-on-failure',
-       video: 'retain-on-failure',
-       actionTimeout: 15 * 1000, // Action timeout: 15s
-       navigationTimeout: 30 * 1000, // Navigation timeout: 30s
-     },
-
-     reporter: [['html', { outputFolder: 'test-results/html' }], ['junit', { outputFile: 'test-results/junit.xml' }], ['list']],
-
-     projects: [
-       { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-       { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-       { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-     ],
-   });
+   ```
+   1. Web fetch: "[framework] configuration reference [year]"
+   2. Web fetch: "[framework] recommended settings"
+   3. Check for version-specific configuration options
+   4. Generate config using CURRENT API from fetched docs
+   5. Include comments linking to official documentation
    ```
 
-   **For Cypress** (`cypress.config.ts` or `cypress.config.js`):
+   **Universal Configuration Principles (all frameworks):**
+   - Timeout settings: action ~15s, test ~60s
+   - Parallel execution enabled (where supported)
+   - Retry on failure in CI (typically 2 retries)
+   - Failure artifacts: screenshots, traces, logs
+   - Reporter configuration: console + CI-compatible (JUnit XML)
+   - Environment-based configuration (local vs CI)
 
-   ```typescript
-   import { defineConfig } from 'cypress';
+   **Example Structure (generate from fetched docs):**
 
-   export default defineConfig({
-     e2e: {
-       baseUrl: process.env.BASE_URL || 'http://localhost:3000',
-       specPattern: 'tests/e2e/**/*.cy.{js,jsx,ts,tsx}',
-       supportFile: 'tests/support/e2e.ts',
-       video: false,
-       screenshotOnRunFailure: true,
-
-       setupNodeEvents(on, config) {
-         // implement node event listeners here
-       },
-     },
-
-     retries: {
-       runMode: 2,
-       openMode: 0,
-     },
-
-     defaultCommandTimeout: 15000,
-     requestTimeout: 30000,
-     responseTimeout: 30000,
-     pageLoadTimeout: 60000,
-   });
    ```
+   // Generated: {timestamp}
+   // Framework: {framework} v{version}
+   // Docs: {official_docs_url}
+
+   {config_content_from_fetched_docs}
+   ```
+
+   **For TypeScript/JavaScript (Playwright example - fetch latest):**
+   Web fetch <https://playwright.dev/docs/test-configuration> then generate.
+
+   **For Python (pytest example - fetch latest):**
+   Web fetch <https://docs.pytest.org/en/stable/reference/customize.html> then generate.
+
+   **For Java (JUnit 5 example - fetch latest):**
+   Web fetch <https://junit.org/junit5/docs/current/user-guide/> then generate.
+
+   **For other languages:**
+   Web search "[framework] configuration guide" and generate from official docs.
 
 4. **Generate Environment Configuration**
 
-   Create `.env.example`:
+   Create environment config appropriate for the language:
+
+   **For all languages - `.env.example`:**
 
    ```bash
    # Test Environment Configuration
@@ -177,131 +315,139 @@ Initialize a production-ready test framework architecture (Playwright or Cypress
    TEST_API_KEY=
    ```
 
-5. **Generate Node Version File**
+   **Language-specific version files:**
+   - **Node.js**: `.nvmrc` with LTS version
+   - **Python**: `.python-version` or `pyproject.toml` python version
+   - **Ruby**: `.ruby-version`
+   - **Go**: `go.mod` already specifies version
+   - **Java**: `.java-version` or build tool config
 
-   Create `.nvmrc`:
-
-   ```
-   20.11.0
-   ```
-
-   (Use Node version from existing `.nvmrc` or default to current LTS)
-
-6. **Implement Fixture Architecture**
+5. **Implement Fixture Architecture (Language-Agnostic)**
 
    **Knowledge Base Reference**: `testarch/knowledge/fixture-architecture.md`
 
-   Create `tests/support/fixtures/index.ts`:
+   **Universal Fixture Principles:**
+   - Fixtures provide reusable setup/teardown
+   - Auto-cleanup: resources created during setup are deleted in teardown
+   - Composable: combine multiple fixtures without inheritance
+   - Type-safe: leverage language's type system where available
 
-   ```typescript
-   import { test as base } from '@playwright/test';
-   import { UserFactory } from './factories/user-factory';
+   **CRITICAL**: Web fetch fixture patterns for detected framework:
 
-   type TestFixtures = {
-     userFactory: UserFactory;
-   };
-
-   export const test = base.extend<TestFixtures>({
-     userFactory: async ({}, use) => {
-       const factory = new UserFactory();
-       await use(factory);
-       await factory.cleanup(); // Auto-cleanup
-     },
-   });
-
-   export { expect } from '@playwright/test';
+   ```
+   1. Web fetch: "[framework] fixtures guide"
+   2. Web fetch: "[framework] test setup teardown"
+   3. Generate using CURRENT patterns from fetched docs
    ```
 
-7. **Implement Data Factories**
+   **Generate fixtures following language conventions:**
+
+   | Language     | Fixture Pattern              | Example Location          |
+   | ------------ | ---------------------------- | ------------------------- |
+   | TypeScript   | `test.extend<T>()`           | `tests/support/fixtures/` |
+   | Python       | `@pytest.fixture`            | `conftest.py`             |
+   | Java         | `@BeforeEach/@AfterEach`     | Test classes              |
+   | Go           | `TestMain`, helper functions | `*_test.go`               |
+   | Ruby (RSpec) | `let`, `before/after`        | `spec/support/`           |
+   | C#           | `[SetUp]/[TearDown]`         | Test classes              |
+
+6. **Implement Data Factories (Language-Agnostic)**
 
    **Knowledge Base Reference**: `testarch/knowledge/data-factories.md`
 
-   Create `tests/support/fixtures/factories/user-factory.ts`:
+   **Universal Factory Principles:**
+   - Generate realistic fake data (no hardcoded values)
+   - Support overrides for specific test scenarios
+   - Track created resources for cleanup
+   - Parallel-safe (unique IDs, no collisions)
 
-   ```typescript
-   import { faker } from '@faker-js/faker';
+   **Fake Data Libraries by Language:**
+   | Language | Library | Docs |
+   |----------|---------|------|
+   | TypeScript/JS | @faker-js/faker | <https://fakerjs.dev> |
+   | Python | Faker | <https://faker.readthedocs.io> |
+   | Java | JavaFaker, DataFaker | <https://github.com/datafaker-net/datafaker> |
+   | Go | gofakeit | <https://github.com/brianvoe/gofakeit> |
+   | Ruby | Faker | <https://github.com/faker-ruby/faker> |
+   | C# | Bogus | <https://github.com/bchavez/Bogus> |
+   | PHP | FakerPHP | <https://fakerphp.github.io> |
+   | Rust | fake-rs | <https://github.com/cksac/fake-rs> |
 
-   export class UserFactory {
-     private createdUsers: string[] = [];
+   **CRITICAL**: Web fetch factory patterns for detected language:
 
-     async createUser(overrides = {}) {
-       const user = {
-         email: faker.internet.email(),
-         name: faker.person.fullName(),
-         password: faker.internet.password({ length: 12 }),
-         ...overrides,
-       };
-
-       // API call to create user
-       const response = await fetch(`${process.env.API_URL}/users`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(user),
-       });
-
-       const created = await response.json();
-       this.createdUsers.push(created.id);
-       return created;
-     }
-
-     async cleanup() {
-       // Delete all created users
-       for (const userId of this.createdUsers) {
-         await fetch(`${process.env.API_URL}/users/${userId}`, {
-           method: 'DELETE',
-         });
-       }
-       this.createdUsers = [];
-     }
-   }
+   ```
+   1. Web fetch: "[language] test data factory pattern"
+   2. Web fetch: "[faker_library] documentation"
+   3. Generate factories using CURRENT API from fetched docs
    ```
 
-8. **Generate Sample Tests**
+7. **Generate Sample Tests (Language-Specific)**
 
-   Create `tests/e2e/example.spec.ts`:
+   Generate sample tests using detected framework and conventions:
 
-   ```typescript
-   import { test, expect } from '../support/fixtures';
+   **Universal Test Structure (Given-When-Then):**
 
-   test.describe('Example Test Suite', () => {
-     test('should load homepage', async ({ page }) => {
-       await page.goto('/');
-       await expect(page).toHaveTitle(/Home/i);
-     });
-
-     test('should create user and login', async ({ page, userFactory }) => {
-       // Create test user
-       const user = await userFactory.createUser();
-
-       // Login
-       await page.goto('/login');
-       await page.fill('[data-testid="email-input"]', user.email);
-       await page.fill('[data-testid="password-input"]', user.password);
-       await page.click('[data-testid="login-button"]');
-
-       // Assert login success
-       await expect(page.locator('[data-testid="user-menu"]')).toBeVisible();
-     });
-   });
+   ```
+   // GIVEN: Initial state/setup
+   // WHEN: Action being tested
+   // THEN: Expected outcome (assertion)
    ```
 
-9. **Update package.json Scripts**
+   **CRITICAL**: Generate samples using freshly fetched framework docs:
 
-   Add minimal test script to `package.json`:
+   ```
+   1. Web fetch: "[framework] writing tests guide"
+   2. Web fetch: "[framework] assertions reference"
+   3. Generate tests matching project conventions
+   4. Include comments linking to relevant docs
+   ```
+
+   **Sample test should demonstrate:**
+   - Basic test structure for the framework
+   - Fixture usage
+   - Factory usage
+   - Assertion patterns
+   - Async handling (if applicable)
+
+8. **Update Build/Package Scripts**
+
+   Add test scripts appropriate for the language:
+
+   **JavaScript/TypeScript (package.json):**
 
    ```json
-   {
-     "scripts": {
-       "test:e2e": "playwright test"
-     }
-   }
+   { "scripts": { "test": "[framework] test", "test:e2e": "[e2e-framework] test" } }
    ```
 
-   **Note**: Users can add additional scripts as needed (e.g., `--ui`, `--headed`, `--debug`, `show-report`).
+   **Python (pyproject.toml or setup.cfg):**
 
-10. **Generate Documentation**
+   ```toml
+   [tool.pytest.ini_options]
+   testpaths = ["tests"]
+   ```
 
-    Create `tests/README.md` with setup instructions (see Step 3 deliverables).
+   **Go (Makefile or go task):**
+
+   ```makefile
+   test: go test ./...
+   ```
+
+   **Java (Maven pom.xml or Gradle):**
+   Add surefire/failsafe plugin configuration
+
+   **Fetch latest recommended scripts:**
+
+   ```
+   Web fetch: "[framework] npm scripts" or "[framework] recommended commands"
+   ```
+
+9. **Generate Documentation**
+
+   Create `tests/README.md` with:
+   - Setup instructions for detected language/framework
+   - Commands to run tests (fetched from official docs)
+   - Links to official documentation
+   - Architecture overview (fixtures, factories, conventions)
 
 ---
 
@@ -347,84 +493,103 @@ The generated `tests/README.md` should include:
 
 ## Important Notes
 
+### Language-Agnostic Approach
+
+**This workflow adapts to ANY programming language.** The key principle is:
+
+1. **Detect** the project's language and existing conventions
+2. **Fetch** latest documentation for the selected framework
+3. **Generate** code using current patterns from official docs
+4. **Apply** universal testing principles regardless of language
+
 ### Knowledge Base Integration
 
-**Critical:** Check configuration and load appropriate fragments.
+**Critical:** Load knowledge fragments based on detected language and framework.
 
-Read `{config_source}` and check `config.tea_use_playwright_utils`.
+Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load relevant fragments.
 
-**If `config.tea_use_playwright_utils: true` (Playwright Utils Integration):**
+**Universal Fragments (load for all languages):**
 
-Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load:
+- `fixture-architecture.md` - Fixture patterns and composition principles
+- `data-factories.md` - Factory patterns with fake data generation
+- `test-quality.md` - Test design principles (deterministic, isolated, explicit assertions)
 
-- `overview.md` - Playwright utils installation and design principles
-- `fixtures-composition.md` - mergeTests composition with playwright-utils
-- `auth-session.md` - Token persistence setup (if auth needed)
-- `api-request.md` - API testing utilities (if API tests planned)
-- `burn-in.md` - Smart test selection for CI (recommend during framework setup)
-- `network-error-monitor.md` - Automatic HTTP error detection (recommend in merged fixtures)
-- `data-factories.md` - Factory patterns with faker (498 lines, 5 examples)
+**Language-Specific Guidance:**
+After loading universal fragments, adapt patterns to detected language using:
 
-Recommend installing playwright-utils:
+1. Freshly fetched documentation for the framework
+2. Existing project conventions (from Step 0 detection)
+3. Language-specific idioms and best practices
 
-```bash
-npm install -D @seontechnologies/playwright-utils
+### Real-Time Documentation Fetching
+
+**MANDATORY for every code generation:**
+
+```
+Before generating config, fixtures, factories, or tests:
+1. Web fetch official documentation for detected framework
+2. Check for latest version and API changes
+3. Generate code using CURRENT patterns (not memorized)
+4. Include documentation links in generated code comments
 ```
 
-Recommend adding burn-in and network-error-monitor to merged fixtures for enhanced reliability.
+**Why this matters:**
 
-**If `config.tea_use_playwright_utils: false` (Traditional Patterns):**
+- Framework APIs change frequently
+- Best practices evolve over time
+- Static templates become outdated
+- Real-time fetch ensures accuracy
 
-Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load:
+### Universal Testing Principles (All Languages)
 
-- `fixture-architecture.md` - Pure function → fixture → `mergeTests` composition with auto-cleanup (406 lines, 5 examples)
-- `data-factories.md` - Faker-based factories with overrides, nested factories, API seeding, auto-cleanup (498 lines, 5 examples)
-- `network-first.md` - Network-first testing safeguards: intercept before navigate, HAR capture, deterministic waiting (489 lines, 5 examples)
-- `playwright-config.md` - Playwright-specific configuration: environment-based, timeout standards, artifact output, parallelization, project config (722 lines, 5 examples)
-- `test-quality.md` - Test design principles: deterministic, isolated with cleanup, explicit assertions, length/time limits (658 lines, 5 examples)
+**Selector Strategy (for UI tests):**
 
-### Framework-Specific Guidance
+- Use stable identifiers: `data-testid`, `data-test`, `test-id`
+- Avoid brittle selectors: CSS classes, XPath, DOM structure
+- Prefer accessibility attributes when meaningful
 
-**Playwright Advantages:**
+**Test Isolation:**
 
-- Worker parallelism (significantly faster for large suites)
-- Trace viewer (powerful debugging with screenshots, network, console)
-- Multi-language support (TypeScript, JavaScript, Python, C#, Java)
-- Built-in API testing capabilities
-- Better handling of multiple browser contexts
+- Each test runs independently
+- No shared mutable state between tests
+- Auto-cleanup of created resources
 
-**Cypress Advantages:**
+**Deterministic Tests:**
 
-- Superior developer experience (real-time reloading)
-- Excellent for component testing (Cypress CT or use Vitest)
-- Simpler setup for small teams
-- Better suited for watch mode during development
+- No flaky tests (race conditions, timing issues)
+- Explicit waits instead of sleep/delays
+- Mocked external dependencies where appropriate
 
-**Avoid Cypress when:**
+**Failure Artifacts:**
 
-- API chains are heavy and complex
-- Multi-tab/window scenarios are common
-- Worker parallelism is critical for CI performance
-
-### Selector Strategy
-
-**Always recommend**:
-
-- `data-testid` attributes for UI elements
-- `data-cy` attributes if Cypress is chosen
-- Avoid brittle CSS selectors or XPath
+- Capture on failure: screenshots, logs, traces
+- Delete on success to save storage
+- Include enough context for debugging
 
 ### Contract Testing
 
-For microservices architectures, **recommend Pact** for consumer-driven contract testing alongside E2E tests.
+For microservices architectures, recommend contract testing:
 
-### Failure Artifacts
+- **Pact**: Consumer-driven contracts (multiple languages)
+- **Spring Cloud Contract**: JVM-based services
+- **Dredd**: API Blueprint / OpenAPI validation
 
-Configure **failure-only** capture:
+### Framework Selection Guidance
 
-- Screenshots: only on failure
-- Videos: retain on failure (delete on success)
-- Traces: retain on failure (Playwright)
+**E2E Framework Selection (by ecosystem):**
+
+| Scenario       | TypeScript/JS        | Python            | Java                | C#/.NET    | Go       |
+| -------------- | -------------------- | ----------------- | ------------------- | ---------- | -------- |
+| Web UI testing | Playwright           | Playwright        | Selenium/Playwright | Playwright | Chromedp |
+| API testing    | Playwright/SuperTest | pytest + requests | REST Assured        | RestSharp  | net/http |
+| Mobile         | Appium               | Appium            | Appium              | Appium     | gomobile |
+
+**Unit Test Framework Selection:**
+
+- Choose framework with best ecosystem integration
+- Prefer frameworks with good IDE support
+- Consider parallel execution capabilities
+- Check community size and maintenance status
 
 This reduces storage overhead while maintaining debugging capability.
 

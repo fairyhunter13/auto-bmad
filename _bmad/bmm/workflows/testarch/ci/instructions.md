@@ -3,7 +3,7 @@
 # CI/CD Pipeline Setup
 
 **Workflow ID**: `_bmad/bmm/testarch/ci`
-**Version**: 4.0 (BMad v6)
+**Version**: 5.0 (Language Agnostic)
 
 ---
 
@@ -11,7 +11,72 @@
 
 Scaffolds a production-ready CI/CD quality pipeline with test execution, burn-in loops for flaky test detection, parallel sharding, artifact collection, and notification configuration. This workflow creates platform-specific CI configuration optimized for fast feedback and reliable test execution.
 
+**Language Agnostic**: This workflow supports ANY programming language and test framework. Detection happens automatically in Step 0.
+
 Note: This is typically a one-time setup per repo; run it any time after the test framework exists, ideally before feature work starts.
+
+---
+
+## Step 0: Detect Project Environment (MANDATORY)
+
+**CRITICAL**: Before proceeding with CI setup, you MUST detect the project's language and test framework.
+
+### Actions
+
+1. **Detect Language from Codebase**
+
+   Scan project root for language indicators:
+   - `package.json` → JavaScript/TypeScript (Node.js)
+   - `requirements.txt` / `pyproject.toml` / `setup.py` → Python
+   - `go.mod` → Go
+   - `pom.xml` / `build.gradle` → Java (Maven/Gradle)
+   - `Cargo.toml` → Rust
+   - `*.csproj` / `*.sln` → C# (.NET)
+   - `Gemfile` → Ruby
+   - `composer.json` → PHP
+
+2. **Detect Test Framework**
+
+   Based on language, identify test framework:
+   - **JavaScript/TypeScript**: `playwright.config.*`, `vitest.config.*`, `jest.config.*`, `cypress.config.*`
+   - **Python**: `pytest.ini`, `conftest.py`, `tox.ini`
+   - **Go**: `*_test.go` files (native testing)
+   - **Java**: JUnit config in `pom.xml`/`build.gradle`
+   - **Rust**: `#[test]` in source files (native testing)
+   - **C#**: `*.Tests.csproj`, xUnit/NUnit/MSTest references
+   - **Ruby**: `spec/` directory, RSpec configuration
+   - **PHP**: `phpunit.xml`
+
+3. **Fetch Latest CI/CD Patterns (MANDATORY)**
+
+   **CRITICAL**: Before generating ANY CI configuration, fetch current documentation:
+
+   ```
+   Search: "[DETECTED_LANGUAGE] [DETECTED_FRAMEWORK] CI/CD GitHub Actions best practices [CURRENT_YEAR]"
+   Search: "[DETECTED_CI_PLATFORM] [DETECTED_FRAMEWORK] workflow configuration [CURRENT_YEAR]"
+   ```
+
+   Include `NOW()` timestamp in generated configuration comments:
+
+   ```yaml
+   # Generated: [TIMESTAMP]
+   # Framework: [DETECTED_FRAMEWORK]
+   # Docs fetched: [CURRENT_DATE]
+   ```
+
+4. **Store Detection Results**
+
+   ```yaml
+   detected:
+     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
+     runtime_version: '[e.g., Node 22, Python 3.12, Go 1.22]'
+     test_framework: '[e.g., Playwright, pytest, go test, JUnit 6]'
+     test_command: '[e.g., npm test, pytest, go test ./...]'
+     package_manager: '[e.g., npm, pip, go mod, maven]'
+     ci_platform: '[GitHub Actions|GitLab CI|CircleCI|Jenkins]'
+   ```
+
+**Halt Condition**: If language cannot be detected, ask user: "What programming language and test framework does this project use?"
 
 ---
 
@@ -20,7 +85,7 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
 **Critical:** Verify these requirements before proceeding. If any fail, HALT and notify the user.
 
 - ✅ Git repository is initialized (`.git/` directory exists)
-- ✅ Local test suite passes (`npm run test:e2e` succeeds)
+- ✅ Local test suite passes (run detected test command)
 - ✅ Test framework is configured (from `framework` workflow)
 - ✅ Team agrees on target CI platform (GitHub Actions, GitLab CI, Circle CI, etc.)
 - ✅ Access to CI platform settings/secrets available (if updating existing pipeline)
@@ -36,17 +101,25 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
    - Confirm remote repository configured (`git remote -v`)
    - If not initialized, HALT with message: "Git repository required for CI/CD setup"
 
-2. **Validate Test Framework**
-   - Look for `playwright.config.*` or `cypress.config.*`
+2. **Validate Test Framework** (Language-Agnostic)
+   - Use detection results from Step 0
    - Read framework configuration to extract:
      - Test directory location
-     - Test command
+     - Test command (language-specific)
      - Reporter configuration
      - Timeout settings
    - If not found, HALT with message: "Run `framework` workflow first to set up test infrastructure"
 
-3. **Run Local Tests**
-   - Execute `npm run test:e2e` (or equivalent from package.json)
+3. **Run Local Tests** (Use Detected Command)
+   - Execute the detected test command from Step 0:
+     - **JavaScript/TypeScript**: `npm run test:e2e` or `yarn test`
+     - **Python**: `pytest` or `python -m pytest`
+     - **Go**: `go test ./...`
+     - **Java**: `mvn test` or `gradle test`
+     - **Rust**: `cargo test`
+     - **C#**: `dotnet test`
+     - **Ruby**: `bundle exec rspec`
+     - **PHP**: `vendor/bin/phpunit`
    - Ensure tests pass before CI setup
    - If tests fail, HALT with message: "Fix failing tests before setting up CI/CD"
 
@@ -56,16 +129,23 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
      - `.gitlab-ci.yml` (GitLab CI)
      - `.circleci/config.yml` (Circle CI)
      - `Jenkinsfile` (Jenkins)
+     - `azure-pipelines.yml` (Azure DevOps)
    - If found, ask user: "Update existing CI configuration or create new?"
    - If not found, detect platform from git remote:
      - `github.com` → GitHub Actions (default)
      - `gitlab.com` → GitLab CI
+     - `dev.azure.com` → Azure DevOps
      - Ask user if unable to auto-detect
 
-5. **Read Environment Configuration**
-   - Use `.nvmrc` for Node version if present
-   - If missing, default to a current LTS (Node 24) or newer instead of a fixed old version
-   - Read `package.json` to identify dependencies (affects caching strategy)
+5. **Read Environment Configuration** (Language-Specific)
+   - **JavaScript/TypeScript**: Use `.nvmrc` for Node version, read `package.json`
+   - **Python**: Use `.python-version` or `pyproject.toml` for Python version
+   - **Go**: Read `go.mod` for Go version
+   - **Java**: Read `pom.xml` or `build.gradle` for Java version
+   - **Rust**: Read `rust-toolchain.toml` or use stable
+   - **C#**: Read `.csproj` for target framework version
+   - **Ruby**: Use `.ruby-version` for Ruby version
+   - **PHP**: Read `composer.json` for PHP version requirements
 
 **Halt Condition:** If preflight checks fail, stop immediately and report which requirement failed.
 
@@ -99,25 +179,37 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
    - Maximum customization
    - Requires infrastructure management
 
-2. **Generate Pipeline Configuration**
+   **Azure DevOps** (`azure-pipelines.yml`):
+   - Microsoft ecosystem integration
+   - Built-in test reporting
+   - Enterprise features
 
-   Use templates from `{installed_path}/` directory:
-   - `github-actions-template.yml`
-   - `gitlab-ci-template.yml`
+2. **Fetch Latest CI Patterns (MANDATORY)**
 
-   **Key pipeline stages:**
+   **CRITICAL**: Before generating configuration, fetch current best practices:
+
+   ```
+   Search: "[DETECTED_LANGUAGE] [CI_PLATFORM] workflow best practices [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] CI configuration [CURRENT_YEAR]"
+   ```
+
+   Use official documentation for the detected language/framework combination.
+
+3. **Generate Pipeline Configuration** (Language-Agnostic)
+
+   **Key pipeline stages (universal pattern):**
 
    ```yaml
    stages:
-     - lint # Code quality checks
+     - lint # Code quality checks (language-specific linter)
      - test # Test execution (parallel shards)
-     - burn-in # Flaky test detection
+     - burn-in # Flaky test detection (10 iterations)
      - report # Aggregate results and publish
    ```
 
-3. **Configure Test Execution**
+4. **Configure Test Execution** (Use Detected Commands)
 
-   **Parallel Sharding:**
+   **Parallel Sharding (GitHub Actions example - adapt for detected language):**
 
    ```yaml
    strategy:
@@ -127,12 +219,18 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
 
    steps:
      - name: Run tests
-       run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+       run: ${{ env.TEST_COMMAND }} ${{ env.SHARD_FLAG }}
+       env:
+         # Set based on detected framework:
+         # JavaScript/Playwright: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+         # Python/pytest: pytest --splits=4 --group=${{ matrix.shard }}
+         # Go: go test ./... -run "TestShard${{ matrix.shard }}"
+         # Java/JUnit: mvn test -Dsurefire.shardIndex=${{ matrix.shard }}
    ```
 
    **Purpose:** Splits tests into N parallel jobs for faster execution (target: <10 min per shard)
 
-4. **Add Burn-In Loop**
+5. **Add Burn-In Loop** (Language-Agnostic Pattern)
 
    **Critical pattern from production systems:**
 
@@ -143,19 +241,28 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
      steps:
        - uses: actions/checkout@v4
 
-       - name: Setup Node
-         uses: actions/setup-node@v4
-         with:
-           node-version-file: '.nvmrc'
+       # Language-specific setup (use detected values)
+       - name: Setup runtime
+         # JavaScript: actions/setup-node@v4 with node-version-file
+         # Python: actions/setup-python@v5 with python-version-file
+         # Go: actions/setup-go@v5 with go-version-file
+         # Java: actions/setup-java@v4 with java-version
+         # Rust: dtolnay/rust-toolchain@stable
+         # C#: actions/setup-dotnet@v4
 
        - name: Install dependencies
-         run: npm ci
+         run: ${{ env.INSTALL_COMMAND }}
+         # JavaScript: npm ci
+         # Python: pip install -r requirements.txt
+         # Go: go mod download
+         # Java: mvn dependency:resolve
+         # Rust: cargo fetch
 
        - name: Run burn-in loop (10 iterations)
          run: |
            for i in {1..10}; do
              echo "🔥 Burn-in iteration $i/10"
-             npm run test:e2e || exit 1
+             ${{ env.TEST_COMMAND }} || exit 1
            done
 
        - name: Upload failure artifacts
@@ -163,7 +270,7 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
          uses: actions/upload-artifact@v4
          with:
            name: burn-in-failures
-           path: test-results/
+           path: ${{ env.TEST_RESULTS_PATH }}
            retention-days: 30
    ```
 
@@ -174,33 +281,36 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
    - Weekly on cron schedule
    - After significant test infrastructure changes
 
-5. **Configure Caching**
+6. **Configure Caching** (Language-Specific)
 
-   **Node modules cache:**
+   **Fetch latest caching patterns for detected language:**
 
-   ```yaml
-   - name: Cache dependencies
-     uses: actions/cache@v4
-     with:
-       path: ~/.npm
-       key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-       restore-keys: |
-         ${{ runner.os }}-node-
+   ```
+   Search: "[DETECTED_LANGUAGE] GitHub Actions cache [CURRENT_YEAR]"
    ```
 
-   **Browser binaries cache (Playwright):**
+   **Language-specific cache configurations:**
 
-   ```yaml
-   - name: Cache Playwright browsers
-     uses: actions/cache@v4
-     with:
-       path: ~/.cache/ms-playwright
-       key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
-   ```
+   | Language      | Cache Path                 | Hash File           |
+   | ------------- | -------------------------- | ------------------- |
+   | JavaScript    | `~/.npm` or `node_modules` | `package-lock.json` |
+   | Python        | `~/.cache/pip`             | `requirements.txt`  |
+   | Go            | `~/go/pkg/mod`             | `go.sum`            |
+   | Java (Maven)  | `~/.m2/repository`         | `pom.xml`           |
+   | Java (Gradle) | `~/.gradle/caches`         | `build.gradle`      |
+   | Rust          | `~/.cargo`                 | `Cargo.lock`        |
+   | C#            | `~/.nuget/packages`        | `*.csproj`          |
+   | Ruby          | `vendor/bundle`            | `Gemfile.lock`      |
+   | PHP           | `vendor`                   | `composer.lock`     |
+
+   **Browser cache (for E2E frameworks):**
+   - Playwright: `~/.cache/ms-playwright`
+   - Cypress: `~/.cache/Cypress`
+   - Selenium: Driver-specific paths
 
    **Purpose:** Reduces CI execution time by 2-5 minutes per run.
 
-6. **Configure Artifact Collection**
+7. **Configure Artifact Collection** (Language-Agnostic)
 
    **Failure artifacts only:**
 
@@ -210,20 +320,23 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
      uses: actions/upload-artifact@v4
      with:
        name: test-results-${{ matrix.shard }}
-       path: |
-         test-results/
-         playwright-report/
+       path: ${{ env.TEST_RESULTS_PATH }}
+       # Language-specific paths (set in env):
+       # JavaScript: test-results/, playwright-report/, coverage/
+       # Python: .pytest_cache/, htmlcov/, test-results/
+       # Go: coverage.out, test-results/
+       # Java: target/surefire-reports/, target/site/jacoco/
+       # Rust: target/debug/, test-results/
        retention-days: 30
    ```
 
-   **Artifacts to collect:**
-   - Traces (Playwright) - full debugging context
-   - Screenshots - visual evidence of failures
-   - Videos - interaction playback
-   - HTML reports - detailed test results
-   - Console logs - error messages and warnings
+   **Artifacts to collect (by test type):**
+   - **E2E tests**: Traces, screenshots, videos, HAR files
+   - **Unit tests**: Coverage reports, failure logs
+   - **API tests**: Request/response logs, HAR recordings
+   - **All tests**: HTML reports, console logs, error messages
 
-7. **Add Retry Logic**
+8. **Add Retry Logic** (Language-Agnostic)
 
    ```yaml
    - name: Run tests with retries
@@ -232,12 +345,12 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
        timeout_minutes: 30
        max_attempts: 3
        retry_on: error
-       command: npm run test:e2e
+       command: ${{ env.TEST_COMMAND }}
    ```
 
    **Purpose:** Handles transient failures (network issues, race conditions)
 
-8. **Configure Notifications** (Optional)
+9. **Configure Notifications** (Optional)
 
    If `notify_on_failure` is enabled:
 
@@ -251,48 +364,77 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
    ```
 
-9. **Generate Helper Scripts**
+10. **Generate Helper Scripts** (Language-Agnostic)
 
-   **Selective testing script** (`scripts/test-changed.sh`):
+    **CRITICAL**: Fetch latest script patterns for detected language before generating:
 
-   ```bash
-   #!/bin/bash
-   # Run only tests for changed files
+    ```
+    Search: "[DETECTED_LANGUAGE] test script best practices [CURRENT_YEAR]"
+    ```
 
-   CHANGED_FILES=$(git diff --name-only HEAD~1)
+    **Selective testing script** (`scripts/test-changed.sh`):
 
-   if echo "$CHANGED_FILES" | grep -q "src/.*\.ts$"; then
-     echo "Running affected tests..."
-     npm run test:e2e -- --grep="$(echo $CHANGED_FILES | sed 's/src\///g' | sed 's/\.ts//g')"
-   else
-     echo "No test-affecting changes detected"
-   fi
-   ```
+    ```bash
+    #!/bin/bash
+    # Run only tests for changed files
+    # IMPORTANT: Adapt FILE_PATTERN and TEST_COMMAND for detected language
 
-   **Local mirror script** (`scripts/ci-local.sh`):
+    CHANGED_FILES=$(git diff --name-only HEAD~1)
 
-   ```bash
-   #!/bin/bash
-   # Mirror CI execution locally for debugging
+    # Language-specific patterns:
+    # JavaScript/TypeScript: src/.*\.(ts|js)$
+    # Python: .*\.py$
+    # Go: .*\.go$
+    # Java: .*\.java$
+    # Rust: .*\.rs$
+    FILE_PATTERN="${DETECTED_FILE_PATTERN}"
 
-   echo "🔍 Running CI pipeline locally..."
+    if echo "$CHANGED_FILES" | grep -qE "$FILE_PATTERN"; then
+      echo "Running affected tests..."
+      ${TEST_COMMAND_WITH_FILTER}
+    else
+      echo "No test-affecting changes detected"
+    fi
+    ```
 
-   # Lint
-   npm run lint || exit 1
+    **Local mirror script** (`scripts/ci-local.sh`):
 
-   # Tests
-   npm run test:e2e || exit 1
+    ```bash
+    #!/bin/bash
+    # Mirror CI execution locally for debugging
+    # IMPORTANT: Replace commands with detected language equivalents
 
-   # Burn-in (reduced iterations)
-   for i in {1..3}; do
-     echo "🔥 Burn-in $i/3"
-     npm run test:e2e || exit 1
-   done
+    echo "🔍 Running CI pipeline locally..."
 
-   echo "✅ Local CI pipeline passed"
-   ```
+    # Lint (language-specific: $LINT_COMMAND)
+    ${LINT_COMMAND} || exit 1
 
-10. **Generate Documentation**
+    # Tests (language-specific: $TEST_COMMAND)
+    ${TEST_COMMAND} || exit 1
+
+    # Burn-in (reduced iterations)
+    for i in {1..3}; do
+      echo "🔥 Burn-in $i/3"
+      ${TEST_COMMAND} || exit 1
+    done
+
+    echo "✅ Local CI pipeline passed"
+    ```
+
+    **Language-specific command reference:**
+
+    | Language   | Lint Command                        | Test Command         |
+    | ---------- | ----------------------------------- | -------------------- |
+    | JavaScript | `npm run lint`                      | `npm run test:e2e`   |
+    | Python     | `ruff check .` or `flake8`          | `pytest`             |
+    | Go         | `golangci-lint run`                 | `go test ./...`      |
+    | Java       | `mvn checkstyle:check`              | `mvn test`           |
+    | Rust       | `cargo clippy`                      | `cargo test`         |
+    | C#         | `dotnet format --verify-no-changes` | `dotnet test`        |
+    | Ruby       | `rubocop`                           | `bundle exec rspec`  |
+    | PHP        | `vendor/bin/phpcs`                  | `vendor/bin/phpunit` |
+
+11. **Generate Documentation**
 
     **CI README** (`docs/ci.md`):
     - Pipeline stages and purpose
@@ -313,18 +455,20 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
 
 ### Primary Artifacts Created
 
-1. **CI Configuration File**
+1. **CI Configuration File** (Based on detected CI platform)
    - `.github/workflows/test.yml` (GitHub Actions)
    - `.gitlab-ci.yml` (GitLab CI)
    - `.circleci/config.yml` (Circle CI)
+   - `Jenkinsfile` (Jenkins)
+   - `azure-pipelines.yml` (Azure DevOps)
 
-2. **Pipeline Stages**
-   - **Lint**: Code quality checks (ESLint, Prettier)
+2. **Pipeline Stages** (Language-agnostic pattern)
+   - **Lint**: Code quality checks (language-specific linter)
    - **Test**: Parallel test execution (4 shards)
    - **Burn-in**: Flaky test detection (10 iterations)
    - **Report**: Result aggregation and publishing
 
-3. **Helper Scripts**
+3. **Helper Scripts** (Adapted for detected language)
    - `scripts/test-changed.sh` - Selective testing
    - `scripts/ci-local.sh` - Local CI mirror
    - `scripts/burn-in.sh` - Standalone burn-in execution
@@ -334,8 +478,9 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
    - `docs/ci-secrets-checklist.md` - Required secrets
    - Inline comments in CI configuration
 
-5. **Optimization Features**
-   - Dependency caching (npm, browser binaries)
+5. **Optimization Features** (Language-Agnostic)
+   - Dependency caching (language-specific package manager)
+   - Browser binary caching (for E2E frameworks)
    - Parallel sharding (4 jobs default)
    - Retry logic (2 retries on failure)
    - Failure-only artifact upload
@@ -353,32 +498,41 @@ Note: This is typically a one-time setup per repo; run it any time after the tes
 
 ## Important Notes
 
+### Language-Agnostic CI/CD Approach
+
+**CRITICAL**: This workflow generates CI configuration for ANY language. Always:
+
+1. Detect language/framework in Step 0
+2. Fetch latest CI patterns via web search before generating config
+3. Use detected commands throughout (don't hardcode npm/pytest/etc.)
+4. Include generation timestamp in config comments
+
 ### Knowledge Base Integration
 
 **Critical:** Check configuration and load appropriate fragments.
 
 Read `{config_source}` and check `config.tea_use_playwright_utils`.
 
-**Core CI Patterns (Always load):**
+**Core CI Patterns (Always load - language-agnostic principles):**
 
-- `ci-burn-in.md` - Burn-in loop patterns: 10-iteration detection, GitHub Actions workflow, shard orchestration, selective execution (678 lines, 4 examples)
+- `ci-burn-in.md` - Burn-in loop patterns: 10-iteration detection, CI workflow, shard orchestration, selective execution (678 lines, 4 examples)
 - `selective-testing.md` - Changed test detection strategies: tag-based, spec filters, diff-based selection, promotion rules (727 lines, 4 examples)
-- `visual-debugging.md` - Artifact collection best practices: trace viewer, HAR recording, custom artifacts, accessibility integration (522 lines, 5 examples)
-- `test-quality.md` - CI-specific test quality criteria: deterministic tests, isolated with cleanup, explicit assertions, length/time optimization (658 lines, 5 examples)
-- `playwright-config.md` - CI-optimized configuration: parallelization, artifact output, project dependencies, sharding (722 lines, 5 examples)
+- `visual-debugging.md` - Artifact collection best practices: trace viewer, HAR recording, custom artifacts (522 lines, 5 examples)
+- `test-quality.md` - CI-specific test quality criteria: deterministic tests, isolated with cleanup, explicit assertions (658 lines, 5 examples)
 
-**If `config.tea_use_playwright_utils: true`:**
+**If `config.tea_use_playwright_utils: true` (JavaScript/TypeScript projects):**
 
-Load playwright-utils CI-relevant fragments:
+Load Playwright-specific CI-relevant fragments:
 
-- `burn-in.md` - Smart test selection with git diff analysis (very important for CI optimization)
-- `network-error-monitor.md` - Automatic HTTP 4xx/5xx detection (recommend in CI pipelines)
+- `playwright-config.md` - CI-optimized configuration: parallelization, artifact output, sharding
+- `burn-in.md` - Smart test selection with git diff analysis
+- `network-error-monitor.md` - Automatic HTTP 4xx/5xx detection
 
-Recommend:
+**For other languages, fetch framework-specific CI patterns:**
 
-- Add burn-in script for pull request validation
-- Enable network-error-monitor in merged fixtures for catching silent failures
-- Reference full docs in `*framework` and `*automate` workflows
+```
+Search: "[DETECTED_FRAMEWORK] CI/CD configuration best practices [CURRENT_YEAR]"
+```
 
 ### CI Platform-Specific Guidance
 
@@ -431,12 +585,16 @@ Recommend:
 - Maintains debugging capability
 - 30-day retention default
 
-**Artifact types:**
+**Artifact types by framework:**
 
-- Traces (Playwright) - 5-10 MB per test
-- Screenshots - 100-500 KB per screenshot
-- Videos - 2-5 MB per test
-- HTML reports - 1-2 MB per run
+| Framework  | Artifacts                   | Typical Size     |
+| ---------- | --------------------------- | ---------------- |
+| Playwright | Traces, screenshots, videos | 5-10 MB per test |
+| Cypress    | Screenshots, videos, HAR    | 2-5 MB per test  |
+| pytest     | HTML reports, coverage      | 1-2 MB per run   |
+| JUnit      | XML reports, coverage       | 1-5 MB per run   |
+| Go test    | Coverage profiles, JSON     | <1 MB per run    |
+| RSpec      | HTML reports, screenshots   | 1-3 MB per run   |
 
 ### Selective Testing
 
@@ -469,8 +627,8 @@ git diff --name-only HEAD~1
 
 **Mirrors CI environment:**
 
-- Same Node version
-- Same test command
+- Same runtime version (Node/Python/Go/Java/etc.)
+- Same test command (detected in Step 0)
 - Same stages (lint → test → burn-in)
 - Reduced burn-in iterations (3 vs 10)
 
@@ -483,15 +641,18 @@ After completing this workflow, provide a summary:
 ```markdown
 ## CI/CD Pipeline Complete
 
-**Platform**: GitHub Actions (or GitLab CI, etc.)
+**Platform**: {DETECTED_CI_PLATFORM} (GitHub Actions, GitLab CI, etc.)
+**Language**: {DETECTED_LANGUAGE}
+**Framework**: {DETECTED_TEST_FRAMEWORK}
+**Generated**: {TIMESTAMP}
 
 **Artifacts Created**:
 
-- ✅ Pipeline configuration: .github/workflows/test.yml
+- ✅ Pipeline configuration: {CI_CONFIG_PATH}
 - ✅ Burn-in loop: 10 iterations for flaky detection
 - ✅ Parallel sharding: 4 jobs for fast execution
-- ✅ Caching: Dependencies + browser binaries
-- ✅ Artifact collection: Failure-only traces/screenshots/videos
+- ✅ Caching: Dependencies ({PACKAGE_MANAGER}) + test artifacts
+- ✅ Artifact collection: Failure-only reports/screenshots/logs
 - ✅ Helper scripts: test-changed.sh, ci-local.sh, burn-in.sh
 - ✅ Documentation: docs/ci.md, docs/ci-secrets-checklist.md
 
@@ -504,11 +665,16 @@ After completing this workflow, provide a summary:
 
 **Next Steps**:
 
-1. Commit CI configuration: `git add .github/workflows/test.yml && git commit -m "ci: add test pipeline"`
+1. Commit CI configuration: `git add {CI_CONFIG_PATH} && git commit -m "ci: add test pipeline"`
 2. Push to remote: `git push`
 3. Configure required secrets in CI platform settings (see docs/ci-secrets-checklist.md)
 4. Open a PR to trigger first CI run
 5. Monitor pipeline execution and adjust parallelism if needed
+
+**Documentation Fetched**:
+
+- {FRAMEWORK} CI best practices ({CURRENT_YEAR})
+- {CI_PLATFORM} workflow configuration
 
 **Knowledge Base References Applied**:
 

@@ -1,16 +1,41 @@
 # Fixture Architecture Playbook
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The principle of "pure functions → framework fixtures → composition" is universal. The code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating fixture code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] test setup and teardown [CURRENT_YEAR]"
+Search: "[YOUR_LANGUAGE] test composition patterns [CURRENT_YEAR]"
+```
+
+**Framework-specific fixture mechanisms:**
+
+| Framework  | Fixture Pattern          | Composition          |
+| ---------- | ------------------------ | -------------------- |
+| Playwright | `test.extend()`          | `mergeTests()`       |
+| pytest     | `@pytest.fixture`        | fixture dependencies |
+| Go testing | `t.Cleanup()`, TestMain  | test helpers         |
+| JUnit 5    | `@BeforeEach/@AfterEach` | `@ExtendWith`        |
+| RSpec      | `let`, `before`, `after` | shared examples      |
+| xUnit      | `IClassFixture<T>`       | composition          |
+
 ## Principle
 
-Build test helpers as pure functions first, then wrap them in framework-specific fixtures. Compose capabilities using `mergeTests` (Playwright) or layered commands (Cypress) instead of inheritance. Each fixture should solve one isolated concern (auth, API, logs, network).
+Build test helpers as pure functions first, then wrap them in framework-specific fixtures. Compose capabilities using framework-appropriate composition (e.g., `mergeTests` in Playwright, fixture dependencies in pytest) instead of inheritance. Each fixture should solve one isolated concern (auth, API, logs, network).
 
 ## Rationale
 
-Traditional Page Object Models create tight coupling through inheritance chains (`BasePage → LoginPage → AdminPage`). When base classes change, all descendants break. Pure functions with fixture wrappers provide:
+Traditional Page Object Models create tight coupling through inheritance chains. When base classes change, all descendants break. Pure functions with fixture wrappers provide:
 
 - **Testability**: Pure functions run in unit tests without framework overhead
-- **Composability**: Mix capabilities freely via `mergeTests`, no inheritance constraints
-- **Reusability**: Export fixtures via package subpaths for cross-project sharing
+- **Composability**: Mix capabilities freely via framework composition, no inheritance constraints
+- **Reusability**: Export fixtures for cross-project sharing
 - **Maintainability**: One concern per fixture = clear responsibility boundaries
 
 ## Pattern Examples

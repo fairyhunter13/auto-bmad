@@ -1,5 +1,35 @@
 # Component Test-Driven Development Loop
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL UI frameworks and component testing approaches.**
+
+The component TDD principles below are universal. Code examples use React/Cypress as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_UI_FRAMEWORK] component testing [CURRENT_YEAR]"
+Search: "[YOUR_UI_FRAMEWORK] TDD best practices [CURRENT_YEAR]"
+```
+
+**Component testing tools by UI framework:**
+| UI Framework | Primary Tool | Alternative | Mount API |
+|--------------|-------------|-------------|-----------|
+| React | Cypress Component | RTL, Playwright CT | `cy.mount()`, `render()` |
+| Vue | Cypress Component | Vue Test Utils, Vitest | `cy.mount()`, `mount()` |
+| Angular | Cypress Component | TestBed, Jest | `cy.mount()` |
+| Svelte | Cypress Component | Svelte Testing Library | `cy.mount()` |
+| Web Components | Playwright CT | open-wc testing | Native `customElements` |
+
+**Universal component TDD principles (ALL frameworks):**
+
+- Red-Green-Refactor: Failing test → Minimal pass → Improve
+- Keep component tests under 100 lines
+- Isolate with fresh providers per test (no state bleed)
+- Validate accessibility alongside functionality
+- Visual debugging for diagnosis (runner UI, trace viewer)
+
 ## Principle
 
 Start every UI change with a failing component test (`cy.mount`, Playwright component test, or RTL `render`). Follow the Red-Green-Refactor cycle: write a failing test (red), make it pass with minimal code (green), then improve the implementation (refactor). Ship only after the cycle completes. Keep component tests under 100 lines, isolated with fresh providers per test, and validate accessibility alongside functionality.

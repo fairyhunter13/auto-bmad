@@ -1,4 +1,46 @@
-# Playwright Configuration Guardrails
+# Test Framework Configuration Guardrails
+
+## Language Agnostic
+
+**This knowledge fragment applies to ALL test frameworks across programming languages.**
+
+The configuration principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] configuration best practices [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] timeout settings [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] parallel execution config [CURRENT_YEAR]"
+```
+
+**Framework-specific configuration files:**
+| Framework | Config File | Env Config | Timeout Settings |
+|-----------|-------------|------------|------------------|
+| Playwright | `playwright.config.ts` | `use.baseURL` | `timeout`, `expect.timeout` |
+| Cypress | `cypress.config.ts` | `baseUrl` | `defaultCommandTimeout` |
+| Jest | `jest.config.ts` | Custom env files | `testTimeout` |
+| Vitest | `vitest.config.ts` | `test.env` | `testTimeout` |
+| pytest | `pytest.ini`, `conftest.py` | `pytest.mark.env` | `--timeout` plugin |
+| JUnit | `junit-platform.properties` | System properties | `@Timeout` annotation |
+| Go test | `go test` flags | Environment vars | `-timeout` flag |
+| RSpec | `.rspec`, `spec_helper.rb` | Custom config | `config.around(:each)` |
+
+**Universal timeout standards (ALL frameworks):**
+| Timeout Type | Recommended | Purpose |
+|--------------|-------------|---------|
+| Action | 15s | Click, fill, type operations |
+| Navigation | 30s | Page load, route changes |
+| Assertion | 10s | Element visibility, text matching |
+| Test | 60s | Overall test execution |
+
+**Universal configuration principles (ALL frameworks):**
+
+- Load environment-specific configs via central map
+- Fail fast if environment is invalid (validate at startup)
+- Store artifacts in consistent locations (`test-results/`)
+- Emit multiple reporters (HTML for humans, JUnit/JSON for CI)
+- Version dependencies (Node version, browser versions)
 
 ## Principle
 

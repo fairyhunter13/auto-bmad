@@ -1,15 +1,17 @@
-# Test Quality Review - Instructions v4.0
+# Test Quality Review - Instructions v5.0 (Language Agnostic)
 
 **Workflow:** `testarch-test-review`
 **Purpose:** Review test quality using TEA's comprehensive knowledge base and validate against best practices for maintainability, determinism, isolation, and flakiness prevention
 **Agent:** Test Architect (TEA)
-**Format:** Pure Markdown v4.0 (no XML blocks)
+**Format:** Pure Markdown v5.0 (Language Agnostic)
 
 ---
 
 ## Overview
 
 This workflow performs comprehensive test quality reviews using TEA's knowledge base of best practices. It validates tests against proven patterns for fixture architecture, network-first safeguards, data factories, determinism, isolation, and flakiness prevention. The review generates actionable feedback with quality scoring.
+
+**Language Agnostic**: This workflow supports ANY programming language and test framework. Detection happens automatically in Step 0.
 
 **Key Capabilities:**
 
@@ -23,12 +25,67 @@ This workflow performs comprehensive test quality reviews using TEA's knowledge 
 
 ---
 
+## Step 0: Detect Project Environment (MANDATORY)
+
+**CRITICAL**: Before reviewing ANY test code, you MUST detect the project's language and test framework.
+
+### Actions
+
+1. **Detect Language from Codebase**
+
+   Scan project root for language indicators:
+   - `package.json` → JavaScript/TypeScript (Node.js)
+   - `requirements.txt` / `pyproject.toml` → Python
+   - `go.mod` → Go
+   - `pom.xml` / `build.gradle` → Java
+   - `Cargo.toml` → Rust
+   - `*.csproj` / `*.sln` → C# (.NET)
+   - `Gemfile` → Ruby
+   - `composer.json` → PHP
+
+2. **Detect Test Framework**
+
+   Based on language, identify test framework:
+   - **JavaScript/TypeScript**: Playwright, Jest, Vitest, Cypress, Mocha
+   - **Python**: pytest, unittest
+   - **Go**: native testing, testify
+   - **Java**: JUnit 5/6, TestNG
+   - **Rust**: native testing, cargo test
+   - **C#**: xUnit, NUnit, MSTest
+   - **Ruby**: RSpec, Minitest
+   - **PHP**: PHPUnit
+
+3. **Fetch Latest Quality Patterns (MANDATORY)**
+
+   **CRITICAL**: Before reviewing, fetch current best practices for detected framework:
+
+   ```
+   Search: "[DETECTED_FRAMEWORK] test best practices [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] flaky test patterns to avoid [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
+   ```
+
+4. **Store Detection Results**
+
+   ```yaml
+   detected:
+     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
+     test_framework: '[e.g., Playwright, pytest, go test, JUnit 6]'
+     test_file_pattern: '[e.g., *.spec.ts, test_*.py, *_test.go]'
+     fixture_pattern: '[e.g., test.extend, @pytest.fixture, TestMain]'
+     assertion_style: '[e.g., expect, assert, require]'
+   ```
+
+**Halt Condition**: If language cannot be detected, ask user: "What programming language and test framework does this project use?"
+
+---
+
 ## Prerequisites
 
 **Required:**
 
 - Test file(s) to review (auto-discovered or explicitly provided)
-- Test framework configuration (playwright.config.ts, jest.config.js, etc.)
+- Test framework configuration detected in Step 0
 
 **Recommended:**
 
@@ -49,51 +106,50 @@ This workflow performs comprehensive test quality reviews using TEA's knowledge 
 
 **Actions:**
 
-1. Check playwright-utils flag:
-   - Read `{config_source}` and check `config.tea_use_playwright_utils`
+1. **Verify Step 0 Detection Complete**
 
-2. Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:
+   Ensure language and framework detection from Step 0 is available:
+   - Detected language and test framework
+   - Test file patterns for this framework
+   - Assertion and fixture patterns
 
-   **Core Patterns (Always load):**
-   - `test-quality.md` - Definition of Done (deterministic tests, isolated with cleanup, explicit assertions, <300 lines, <1.5 min, 658 lines, 5 examples)
-   - `data-factories.md` - Factory functions with faker: overrides, nested factories, API-first setup (498 lines, 5 examples)
-   - `test-levels-framework.md` - E2E vs API vs Component vs Unit appropriateness with decision matrix (467 lines, 4 examples)
-   - `selective-testing.md` - Duplicate coverage detection with tag-based, spec filter, diff-based selection (727 lines, 4 examples)
-   - `test-healing-patterns.md` - Common failure patterns: stale selectors, race conditions, dynamic data, network errors, hard waits (648 lines, 5 examples)
-   - `selector-resilience.md` - Selector best practices (data-testid > ARIA > text > CSS hierarchy, anti-patterns, 541 lines, 4 examples)
-   - `timing-debugging.md` - Race condition prevention and async debugging techniques (370 lines, 3 examples)
+2. **Check framework-specific utils flag:**
+   - Read `{config_source}` and check `config.tea_use_playwright_utils` (JavaScript/Playwright only)
+   - For other languages, this flag is ignored
 
-   **If `config.tea_use_playwright_utils: true` (All Utilities):**
-   - `overview.md` - Playwright utils best practices
-   - `api-request.md` - Validate apiRequest usage patterns
-   - `network-recorder.md` - Review HAR record/playback implementation
-   - `auth-session.md` - Check auth token management
-   - `intercept-network-call.md` - Validate network interception
-   - `recurse.md` - Review polling patterns
-   - `log.md` - Check logging best practices
-   - `file-utils.md` - Validate file operation patterns
-   - `burn-in.md` - Review burn-in configuration
-   - `network-error-monitor.md` - Check error monitoring setup
-   - `fixtures-composition.md` - Validate mergeTests usage
+3. **Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:**
 
-   **If `config.tea_use_playwright_utils: false`:**
-   - `fixture-architecture.md` - Pure function → Fixture → mergeTests composition with auto-cleanup (406 lines, 5 examples)
-   - `network-first.md` - Route intercept before navigate to prevent race conditions (489 lines, 5 examples)
-   - `playwright-config.md` - Environment-based configuration with fail-fast validation (722 lines, 5 examples)
-   - `component-tdd.md` - Red-Green-Refactor patterns with provider isolation (480 lines, 4 examples)
-   - `ci-burn-in.md` - Flaky test detection with 10-iteration burn-in loop (678 lines, 4 examples)
+   **Core Patterns (Always load - universal principles):**
+   - `test-quality.md` - Definition of Done (deterministic tests, isolated with cleanup, explicit assertions)
+   - `data-factories.md` - Factory patterns (adapt for detected faker library)
+   - `test-levels-framework.md` - E2E vs API vs Component vs Unit appropriateness
+   - `selective-testing.md` - Duplicate coverage detection patterns
+   - `test-healing-patterns.md` - Common failure patterns (adapt to detected framework)
+   - `selector-resilience.md` - Selector best practices (for E2E frameworks)
+   - `timing-debugging.md` - Race condition prevention
 
-3. Determine review scope:
+   **If JavaScript/TypeScript with `config.tea_use_playwright_utils: true`:**
+   - Load Playwright-specific utility fragments
+
+   **For other languages, fetch framework-specific patterns:**
+
+   ```
+   Search: "[DETECTED_FRAMEWORK] test quality checklist [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] common anti-patterns [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] flaky test prevention [CURRENT_YEAR]"
+   ```
+
+4. **Determine review scope:**
    - **single**: Review one test file (`test_file_path` provided)
    - **directory**: Review all tests in directory (`test_dir` provided)
    - **suite**: Review entire test suite (discover all test files)
 
-4. Auto-discover related artifacts (if `auto_discover_story: true`):
-   - Extract test ID from filename (e.g., `1.3-E2E-001.spec.ts` → story 1.3)
-   - Search for story file (`story-1.3.md`)
-   - Search for test design (`test-design-story-1.3.md` or `test-design-epic-1.md`)
+5. **Auto-discover related artifacts** (if `auto_discover_story: true`):
+   - Extract test ID from filename (adapt pattern for detected language)
+   - Search for story file
+   - Search for test design document
 
-5. Read story file for context (if available):
+6. **Read story file for context** (if available):
    - Extract acceptance criteria
    - Extract priority classification
    - Extract expected test IDs
@@ -106,34 +162,47 @@ This workflow performs comprehensive test quality reviews using TEA's knowledge 
 
 **Actions:**
 
-1. **Discover test files** based on scope:
+1. **Discover test files** based on scope (use detected file patterns from Step 0):
    - **single**: Use `test_file_path` variable
-   - **directory**: Use `glob` to find all test files in `test_dir` (e.g., `*.spec.ts`, `*.test.js`)
-   - **suite**: Use `glob` to find all test files recursively from project root
+   - **directory**: Use `glob` with detected test file pattern
+   - **suite**: Use `glob` recursively with detected patterns
 
-2. **Parse test file metadata**:
+   **Language-specific test file patterns:**
+
+   | Language              | File Pattern                          |
+   | --------------------- | ------------------------------------- |
+   | JavaScript/TypeScript | `*.spec.ts`, `*.test.ts`, `*.spec.js` |
+   | Python                | `test_*.py`, `*_test.py`              |
+   | Go                    | `*_test.go`                           |
+   | Java                  | `*Test.java`, `*Tests.java`           |
+   | Rust                  | Files with `mod tests`                |
+   | C#                    | `*Tests.cs`, `*Test.cs`               |
+   | Ruby                  | `*_spec.rb`                           |
+   | PHP                   | `*Test.php`                           |
+
+2. **Parse test file metadata** (adapt for detected framework):
    - File path and name
    - File size (warn if >15 KB or >300 lines)
-   - Test framework detected (Playwright, Jest, Cypress, Vitest, etc.)
+   - Test framework confirmed (from Step 0 detection)
    - Imports and dependencies
-   - Test structure (describe/context/it blocks)
+   - Test structure (framework-specific blocks)
 
-3. **Extract test structure**:
-   - Count of describe blocks (test suites)
-   - Count of it/test blocks (individual tests)
-   - Test IDs (if present, e.g., `test.describe('1.3-E2E-001')`)
-   - Priority markers (if present, e.g., `test.describe.only` for P0)
+3. **Extract test structure** (framework-specific):
+   - Count of test suites (describe/class/module)
+   - Count of individual tests (it/test/func)
+   - Test IDs (if present)
+   - Priority markers (if present)
    - BDD structure (Given-When-Then comments or steps)
 
-4. **Identify test patterns**:
-   - Fixtures used
+4. **Identify test patterns** (universal anti-patterns to detect):
+   - Fixtures used (framework-specific)
    - Data factories used
-   - Network interception patterns
-   - Assertions used (expect, assert, toHaveText, etc.)
-   - Waits and timeouts (page.waitFor, sleep, hardcoded delays)
-   - Conditionals (if/else, switch, ternary)
-   - Try/catch blocks
-   - Shared state or globals
+   - Network interception/mocking patterns
+   - Assertions used (framework-specific assertion library)
+   - Waits and timeouts (hard waits to flag)
+   - Conditionals (if/else, switch, ternary) - flaky pattern
+   - Try/catch blocks - potential error hiding
+   - Shared state or globals - isolation violation
 
 **Output:** Complete test file inventory with structure and pattern analysis
 
@@ -177,15 +246,22 @@ For each test file, validate against quality criteria (configurable via workflow
 
 #### 4. Hard Waits Detection (if `check_hard_waits: true`)
 
-- ✅ **PASS**: No hard waits detected (no `sleep()`, `wait(5000)`, hardcoded delays)
+- ✅ **PASS**: No hard waits detected (no sleep/delay functions with fixed times)
 - ⚠️ **WARN**: Some hard waits used but with justification comments
 - ❌ **FAIL**: Hard waits detected without justification (flakiness risk)
 
-**Patterns to detect:**
+**Hard wait patterns by language (all are anti-patterns):**
 
-- `sleep(1000)`, `setTimeout()`, `delay()`
-- `page.waitForTimeout(5000)` without explicit reason
-- `await new Promise(resolve => setTimeout(resolve, 3000))`
+| Language   | Hard Wait Anti-Patterns                                |
+| ---------- | ------------------------------------------------------ |
+| JavaScript | `setTimeout()`, `page.waitForTimeout()`, `cy.wait(ms)` |
+| Python     | `time.sleep()`, `asyncio.sleep()`                      |
+| Go         | `time.Sleep()`                                         |
+| Java       | `Thread.sleep()`, `TimeUnit.*.sleep()`                 |
+| Rust       | `thread::sleep()`, `tokio::time::sleep()`              |
+| C#         | `Thread.Sleep()`, `Task.Delay()`                       |
+| Ruby       | `sleep()`, `Kernel.sleep()`                            |
+| PHP        | `sleep()`, `usleep()`                                  |
 
 **Knowledge Fragment**: test-quality.md, network-first.md
 
@@ -226,9 +302,19 @@ For each test file, validate against quality criteria (configurable via workflow
 
 #### 7. Fixture Patterns (if `check_fixture_patterns: true`)
 
-- ✅ **PASS**: Uses pure function → Fixture → mergeTests pattern
+- ✅ **PASS**: Uses framework-appropriate fixture pattern with auto-cleanup
 - ⚠️ **WARN**: Some fixtures used but not consistently
 - ❌ **FAIL**: No fixtures, tests repeat setup code (maintainability risk)
+
+**Framework-specific fixture patterns:**
+
+| Framework  | Good Pattern                 | Anti-Pattern              |
+| ---------- | ---------------------------- | ------------------------- |
+| Playwright | `test.extend()` with cleanup | Manual setup in each test |
+| pytest     | `@pytest.fixture` with yield | Setup in test body        |
+| Go         | `t.Cleanup()`                | No cleanup                |
+| JUnit      | `@BeforeEach`/`@AfterEach`   | Setup in test body        |
+| RSpec      | `let`/`before`/`after`       | Repeated setup            |
 
 **Patterns to check:**
 
@@ -453,23 +539,25 @@ Quality Score: max(0, min(100, Starting Score - Violations + Bonus))
 
 ---
 
-## Quality Criteria Decision Matrix
+## Quality Criteria Decision Matrix (Language-Agnostic)
 
-| Criterion          | PASS                      | WARN           | FAIL                | Knowledge Fragment      |
-| ------------------ | ------------------------- | -------------- | ------------------- | ----------------------- |
-| BDD Format         | Given-When-Then present   | Some structure | No structure        | test-quality.md         |
-| Test IDs           | All tests have IDs        | Some missing   | No IDs              | traceability.md         |
-| Priority Markers   | All classified            | Some missing   | No classification   | test-priorities.md      |
-| Hard Waits         | No hard waits             | Some justified | Hard waits present  | test-quality.md         |
-| Determinism        | No conditionals/random    | Some justified | Conditionals/random | test-quality.md         |
-| Isolation          | Clean up, no shared state | Some gaps      | Shared state        | test-quality.md         |
-| Fixture Patterns   | Pure fn → Fixture         | Some fixtures  | No fixtures         | fixture-architecture.md |
-| Data Factories     | Factory functions         | Some factories | Hardcoded data      | data-factories.md       |
-| Network-First      | Intercept before navigate | Some correct   | Race conditions     | network-first.md        |
-| Assertions         | Explicit assertions       | Some implicit  | Missing assertions  | test-quality.md         |
-| Test Length        | ≤300 lines                | 301-500 lines  | >500 lines          | test-quality.md         |
-| Test Duration      | ≤1.5 min                  | 1.5-3 min      | >3 min              | test-quality.md         |
-| Flakiness Patterns | No flaky patterns         | Some potential | Multiple patterns   | ci-burn-in.md           |
+| Criterion          | PASS                           | WARN           | FAIL                | Knowledge Fragment      |
+| ------------------ | ------------------------------ | -------------- | ------------------- | ----------------------- |
+| BDD Format         | Given-When-Then present        | Some structure | No structure        | test-quality.md         |
+| Test IDs           | All tests have IDs             | Some missing   | No IDs              | traceability.md         |
+| Priority Markers   | All classified (P0/P1/P2/P3)   | Some missing   | No classification   | test-priorities.md      |
+| Hard Waits         | No hard waits (sleep/delay)    | Some justified | Hard waits present  | test-quality.md         |
+| Determinism        | No conditionals/random         | Some justified | Conditionals/random | test-quality.md         |
+| Isolation          | Clean up, no shared state      | Some gaps      | Shared state        | test-quality.md         |
+| Fixture Patterns   | Framework-appropriate fixtures | Some fixtures  | No fixtures         | fixture-architecture.md |
+| Data Factories     | Factory functions with faker   | Some factories | Hardcoded data      | data-factories.md       |
+| Network-First      | Mocks before navigation (E2E)  | Some correct   | Race conditions     | network-first.md        |
+| Assertions         | Explicit assertions            | Some implicit  | Missing assertions  | test-quality.md         |
+| Test Length        | ≤300 lines                     | 301-500 lines  | >500 lines          | test-quality.md         |
+| Test Duration      | ≤1.5 min                       | 1.5-3 min      | >3 min              | test-quality.md         |
+| Flakiness Patterns | No flaky patterns              | Some potential | Multiple patterns   | ci-burn-in.md           |
+
+**Note**: Criteria apply universally across ALL languages/frameworks. Specific implementations vary by framework.
 
 ---
 

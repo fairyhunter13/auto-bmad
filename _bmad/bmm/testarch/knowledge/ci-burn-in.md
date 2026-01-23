@@ -1,5 +1,46 @@
 # CI Pipeline and Burn-In Strategy
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The CI/CD and burn-in testing principles below are universal. Code examples use GitHub Actions with Playwright as reference implementations.
+
+**Before generating code for other platforms, fetch current patterns:**
+
+```
+Search: "[YOUR_CI_PLATFORM] [YOUR_TEST_FRAMEWORK] workflow [CURRENT_YEAR]"
+Search: "[YOUR_CI_PLATFORM] parallel test execution [CURRENT_YEAR]"
+```
+
+**CI platform-specific syntax:**
+| Platform | Matrix Jobs | Caching | Artifacts | Parallelism |
+|----------|-------------|---------|-----------|-------------|
+| GitHub Actions | `strategy.matrix` | `actions/cache` | `actions/upload-artifact` | Matrix + sharding |
+| GitLab CI | `parallel: N` | `cache:` directive | `artifacts:` directive | Parallel jobs |
+| CircleCI | `parallelism: N` | `restore_cache` | `store_artifacts` | Test splitting |
+| Jenkins | `matrix` directive | Custom plugins | `archiveArtifacts` | Parallel stages |
+| Azure DevOps | `strategy: matrix` | Pipeline caching | `PublishBuildArtifacts` | Parallel jobs |
+| Bitbucket | Manual | `caches:` directive | `artifacts:` directive | Limited |
+
+**Framework-specific test sharding:**
+| Framework | Sharding Command | Notes |
+|-----------|------------------|-------|
+| Playwright | `--shard=1/4` | Built-in |
+| Cypress | `cypress-parallel`, `sorry-cypress` | Third-party |
+| Jest | `--shard=1/4` | Built-in (v28+) |
+| pytest | `pytest-split`, `pytest-xdist` | Plugins |
+| JUnit | Gradle/Maven parallelization | Build tool dependent |
+| Go test | `-parallel N` | Built-in |
+
+**Universal CI principles (ALL platforms):**
+
+- Install dependencies once, cache aggressively
+- Run changed tests first (burn-in) before full suite
+- Use `fail-fast: false` to collect all failures
+- Upload artifacts on failure for debugging
+- Shard tests across parallel workers for speed
+
 ## Principle
 
 CI pipelines must execute tests reliably, quickly, and provide clear feedback. Burn-in testing (running changed tests multiple times) flushes out flakiness before merge. Stage jobs strategically: install/cache once, run changed specs first for fast feedback, then shard full suites with fail-fast disabled to preserve evidence.

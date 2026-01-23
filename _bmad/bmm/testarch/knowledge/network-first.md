@@ -1,5 +1,29 @@
 # Network-First Safeguards
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL E2E testing frameworks.**
+
+The principle of "intercept/mock BEFORE action" is universal for preventing race conditions. The code examples use Playwright/Cypress as reference implementations.
+
+**Before generating network code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_E2E_FRAMEWORK] network interception [CURRENT_YEAR]"
+Search: "[YOUR_E2E_FRAMEWORK] API mocking [CURRENT_YEAR]"
+```
+
+**Network mocking by framework:**
+
+| Framework    | Setup Interception                       | Wait for Response   |
+| ------------ | ---------------------------------------- | ------------------- |
+| Playwright   | `page.route()`, `page.waitForResponse()` | Promise-based       |
+| Cypress      | `cy.intercept()`                         | `cy.wait('@alias')` |
+| Selenium     | Proxy/mock server                        | External tools      |
+| WebDriver.io | `mock()`                                 | `waitUntil()`       |
+| TestCafe     | `RequestMock`                            | Automatic handling  |
+| Puppeteer    | `page.setRequestInterception()`          | Event-based         |
+
 ## Principle
 
 Register network interceptions **before** any navigation or user action. Store the interception promise and await it immediately after the triggering step. Replace implicit waits with deterministic signals based on network responses, spinner disappearance, or event hooks.
@@ -10,7 +34,7 @@ The most common source of flaky E2E tests is **race conditions** between navigat
 
 - Navigate then intercept = missed requests (too late)
 - No explicit wait = assertion runs before response arrives
-- Hard waits (`waitForTimeout(3000)`) = slow, unreliable, brittle
+- Hard waits = slow, unreliable, brittle
 
 Network-first patterns provide:
 

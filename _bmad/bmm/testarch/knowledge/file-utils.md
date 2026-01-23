@@ -1,5 +1,35 @@
 # File Utilities
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The file handling and validation principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_LANGUAGE] file download testing [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] CSV XLSX PDF parsing [CURRENT_YEAR]"
+```
+
+**Framework-specific file handling libraries:**
+| Language | CSV | XLSX | PDF | ZIP |
+|----------|-----|------|-----|-----|
+| JavaScript/TS | papaparse, csv-parse | xlsx, exceljs | pdf-parse | jszip, adm-zip |
+| Python | csv, pandas | openpyxl, xlrd | PyPDF2, pdfplumber | zipfile |
+| Java | OpenCSV, Apache Commons | Apache POI | PDFBox, iText | java.util.zip |
+| Go | encoding/csv | excelize | pdfcpu | archive/zip |
+| C# | CsvHelper | EPPlus, ClosedXML | iTextSharp | System.IO.Compression |
+| Ruby | CSV stdlib | roo, creek | pdf-reader | rubyzip |
+
+**Universal file testing principles (ALL frameworks):**
+
+- Handle downloads with deterministic waits (not hard waits)
+- Clean up downloaded files after tests
+- Validate file structure (headers, row counts) not just existence
+- Use type-safe parsing for structured formats
+
 ## Principle
 
 Read and validate files (CSV, XLSX, PDF, ZIP) with automatic parsing, type-safe results, and download handling. Simplify file operations in Playwright tests with built-in format support and validation helpers.
@@ -159,9 +189,7 @@ Text extraction may fail for PDFs that store text as vector graphics (e.g., thos
 const pdfResult = await readPDF({ filePath: downloadPath });
 
 expect(pdfResult.pagesCount).toBe(1);
-expect(pdfResult.info.extractionNotes).toContain(
-  'Text extraction from vector-based PDFs is not supported.'
-);
+expect(pdfResult.info.extractionNotes).toContain('Text extraction from vector-based PDFs is not supported.');
 ```
 
 Such PDFs will have:
@@ -190,9 +218,7 @@ test('should validate ZIP archive', async () => {
 
   // Check file list
   expect(Array.isArray(zipResult.content.entries)).toBe(true);
-  expect(zipResult.content.entries).toContain(
-    'Case_53125_10-19-22_AM/Case_53125_10-19-22_AM_case_data.csv'
-  );
+  expect(zipResult.content.entries).toContain('Case_53125_10-19-22_AM/Case_53125_10-19-22_AM_case_data.csv');
 
   // Extract specific file
   const targetFile = 'Case_53125_10-19-22_AM/Case_53125_10-19-22_AM_case_data.csv';
@@ -330,10 +356,10 @@ expect(headers).toContain('age');
 {
   content: {
     worksheets: Array<{
-      name: string,                       // Sheet name
-      rows: Array<Array<any>>,            // All rows including headers
-      headers?: string[]                  // First row as headers (if present)
-    }>
+      name: string; // Sheet name
+      rows: Array<Array<any>>; // All rows including headers
+      headers?: string[]; // First row as headers (if present)
+    }>;
   }
 }
 ```
@@ -383,10 +409,7 @@ Vanilla Playwright (real test) snippet:
 
 ```typescript
 // ~80 lines of boilerplate!
-const [download] = await Promise.all([
-  page.waitForEvent('download'),
-  page.getByTestId('download-button-CSV Export').click(),
-]);
+const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-button-CSV Export').click()]);
 
 const failure = await download.failure();
 expect(failure).toBeNull();
@@ -404,7 +427,7 @@ await expect
         return false;
       }
     },
-    { timeout: 5000, intervals: [100, 200, 500] }
+    { timeout: 5000, intervals: [100, 200, 500] },
   )
   .toBe(true);
 

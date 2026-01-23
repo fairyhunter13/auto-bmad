@@ -1,12 +1,34 @@
 # Test Quality Definition of Done
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The principles below (determinism, isolation, explicit assertions, cleanup) are universal. The code examples use TypeScript/Playwright/Cypress as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] test best practices [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] deterministic testing patterns [CURRENT_YEAR]"
+Search: "[YOUR_LANGUAGE] test isolation and cleanup [CURRENT_YEAR]"
+```
+
+**Universal anti-patterns to avoid (ALL frameworks):**
+
+- Hard waits: `sleep()`, `Thread.sleep()`, `time.sleep()`, `waitForTimeout()`
+- Conditional test flow: `if/else` controlling test behavior
+- Error swallowing: `try/catch` hiding failures
+- Shared mutable state between tests
+- Random data without seeding
+
 ## Principle
 
 Tests must be deterministic, isolated, explicit, focused, and fast. Every test should execute in under 1.5 minutes, contain fewer than 300 lines, avoid hard waits and conditionals, keep assertions visible in test bodies, and clean up after itself for parallel execution.
 
 ## Rationale
 
-Quality tests provide reliable signal about application health. Flaky tests erode confidence and waste engineering time. Tests that use hard waits (`waitForTimeout(3000)`) are non-deterministic and slow. Tests with hidden assertions or conditional logic become unmaintainable. Large tests (>300 lines) are hard to understand and debug. Slow tests (>1.5 min) block CI pipelines. Self-cleaning tests prevent state pollution in parallel runs.
+Quality tests provide reliable signal about application health. Flaky tests erode confidence and waste engineering time. Tests that use hard waits are non-deterministic and slow. Tests with hidden assertions or conditional logic become unmaintainable. Large tests (>300 lines) are hard to understand and debug. Slow tests (>1.5 min) block CI pipelines. Self-cleaning tests prevent state pollution in parallel runs.
 
 ## Pattern Examples
 

@@ -1,5 +1,36 @@
 # Selector Resilience
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The selector hierarchy and resilience principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] selector best practices [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] data-testid locator pattern [CURRENT_YEAR]"
+```
+
+**Framework-specific selector APIs:**
+| Framework | data-testid | ARIA Role | Text Content | CSS/XPath |
+|-----------|-------------|-----------|--------------|-----------|
+| Playwright | `getByTestId()` | `getByRole()` | `getByText()` | `locator()` |
+| Cypress | `cy.get('[data-testid]')` | `cy.findByRole()` | `cy.contains()` | `cy.get()` |
+| Selenium (Java) | `By.cssSelector('[data-testid]')` | Custom | `By.linkText()` | `By.cssSelector()` |
+| Selenium (Python) | `By.CSS_SELECTOR` | Custom | `By.LINK_TEXT` | `By.XPATH` |
+| WebdriverIO | `$('[data-testid]')` | Custom | `$('=text')` | `$('css')` |
+| TestCafe | `Selector('[data-testid]')` | Custom | `Selector().withText()` | `Selector()` |
+| Puppeteer | `page.$('[data-testid]')` | Custom ARIA | `page.$x()` | `page.$()` |
+
+**Universal selector hierarchy (ALL frameworks):**
+
+1. **data-testid** (BEST) - Explicit test contract, survives all UI changes
+2. **ARIA roles** (GOOD) - Semantic, accessibility-friendly
+3. **Text content** (ACCEPTABLE) - User-centric but fragile to copy changes
+4. **CSS/XPath** (LAST RESORT) - Brittle, breaks with styling changes
+
 ## Principle
 
 Robust selectors follow a strict hierarchy: **data-testid > ARIA roles > text content > CSS/IDs** (last resort). Selectors must be resilient to UI changes (styling, layout, content updates) and remain human-readable for maintenance.

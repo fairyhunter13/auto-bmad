@@ -1,5 +1,35 @@
 # Log Utility
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL test frameworks that support structured logging.**
+
+The test logging principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] test logging best practices [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] test report integration [CURRENT_YEAR]"
+```
+
+**Framework-specific test logging:**
+| Framework | Report Integration | Step Logging | Object Logging |
+|-----------|-------------------|--------------|----------------|
+| Playwright | HTML report, trace | `test.step()` | JSON.stringify |
+| Cypress | Command log UI | `cy.log()` | Console output |
+| Jest | Console, reporters | Custom | `console.log` |
+| pytest | stdout capture | `print()` | `pprint` |
+| RSpec | Output formatters | `puts` | `pp` |
+| JUnit | Logger, Allure | `@Step` annotation | Logger |
+
+**Universal test logging principles (ALL frameworks):**
+
+- Integrate logs with test reports (not just console)
+- Use step markers for logical test phases
+- Log objects in structured format (JSON)
+- Capture debug info only on failure
+
 ## Principle
 
 Use structured logging that integrates with Playwright's test reports. Support object logging, test step decoration, and multiple log levels (info, step, success, warning, error, debug).
@@ -211,18 +241,12 @@ const createDefaultTodos = functionTestStep('Create default todos', async (page:
   await log.success('Created all default todos');
 });
 
-const checkNumberOfTodosInLocalStorage = functionTestStep(
-  'Check total todos count fn-step',
-  async (page: Page, expected: number) => {
-    await log.info(`Verifying todo count: ${expected}`);
-    const result = await page.waitForFunction(
-      (e) => JSON.parse(localStorage['react-todos']).length === e,
-      expected
-    );
-    await log.success(`Verified todo count: ${expected}`);
-    return result;
-  }
-);
+const checkNumberOfTodosInLocalStorage = functionTestStep('Check total todos count fn-step', async (page: Page, expected: number) => {
+  await log.info(`Verifying todo count: ${expected}`);
+  const result = await page.waitForFunction((e) => JSON.parse(localStorage['react-todos']).length === e, expected);
+  await log.success(`Verified todo count: ${expected}`);
+  return result;
+});
 ```
 
 ### Example 5: File Logging
@@ -248,10 +272,13 @@ log.configure({
 // Extend base test with file logging context capture
 export const test = base.extend({
   // Auto-capture test context for file logging
-  autoTestContext: [async ({}, use, testInfo) => {
-    captureTestContext(testInfo);
-    await use(undefined);
-  }, { auto: true }],
+  autoTestContext: [
+    async ({}, use, testInfo) => {
+      captureTestContext(testInfo);
+      await use(undefined);
+    },
+    { auto: true },
+  ],
 });
 ```
 

@@ -1,5 +1,36 @@
 # Auth Session Utility
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The authentication session management principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] authentication testing [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] session storage reuse tests [CURRENT_YEAR]"
+```
+
+**Framework-specific auth session patterns:**
+| Framework | Session Storage | Token Persistence | Multi-User Support |
+|-----------|-----------------|-------------------|-------------------|
+| Playwright | `storageState` JSON | File-based | Context per user |
+| Cypress | `cy.session()` | Cached | Session per user |
+| Selenium | Cookie injection | Custom file storage | WebDriver per user |
+| WebdriverIO | Cookie/localStorage | Custom handlers | Browser instances |
+| TestCafe | `Role` API | Built-in | Role switching |
+| Puppeteer | `page.setCookie()` | Custom file storage | Context per user |
+
+**Universal auth session principles (ALL frameworks):**
+
+- Authenticate once, reuse tokens across test runs
+- Support multiple user identities in same test suite
+- Handle token expiration and renewal automatically
+- Isolate parallel workers with separate user accounts
+- Persist tokens to disk for CI caching
+
 ## Principle
 
 Persist authentication tokens to disk and reuse across test runs. Support multiple user identifiers, ephemeral authentication, and worker-specific accounts for parallel execution. Fetch tokens once, use everywhere. **Works for both API-only tests and browser tests.**
@@ -262,16 +293,12 @@ const apiAuthProvider: AuthProvider = {
 
   extractToken: (storageState) => {
     // Token stored in localStorage format for disk persistence
-    const tokenEntry = storageState.origins?.[0]?.localStorage?.find(
-      (item) => item.name === 'auth_token'
-    );
+    const tokenEntry = storageState.origins?.[0]?.localStorage?.find((item) => item.name === 'auth_token');
     return tokenEntry?.value;
   },
 
   isTokenExpired: (storageState) => {
-    const expiryEntry = storageState.origins?.[0]?.localStorage?.find(
-      (item) => item.name === 'token_expiry'
-    );
+    const expiryEntry = storageState.origins?.[0]?.localStorage?.find((item) => item.name === 'token_expiry');
     if (!expiryEntry) return true;
     return Date.now() > parseInt(expiryEntry.value, 10);
   },

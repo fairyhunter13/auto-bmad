@@ -2,6 +2,37 @@
 
 # Test Priorities Matrix
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The test prioritization principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_FRAMEWORK] test prioritization [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] smoke test best practices [CURRENT_YEAR]"
+```
+
+**Priority levels are universal (ALL frameworks):**
+| Priority | Criteria | Testing Requirements |
+|----------|----------|---------------------|
+| P0 | Revenue, security, compliance, data integrity | Comprehensive coverage, all paths |
+| P1 | Core journeys, frequent features, integrations | Happy paths, key errors |
+| P2 | Secondary features, admin, reporting | Happy path, basic errors |
+| P3 | Rarely used, cosmetic, experimental | Smoke tests only |
+
+**Framework-specific tagging for selective execution:**
+| Framework | Tag Syntax | Run Command |
+|-----------|------------|-------------|
+| Playwright | `test('@p0 ...')` | `--grep @p0` |
+| Cypress | `{ tags: ['@p0'] }` | `--env grepTags=@p0` |
+| Jest | `describe.each`, custom | `--testNamePattern` |
+| pytest | `@pytest.mark.p0` | `-m p0` |
+| RSpec | `:p0` tag | `--tag p0` |
+| JUnit 5 | `@Tag("p0")` | `--include-tag p0` |
+
 Guide for prioritizing test scenarios based on risk, criticality, and business impact.
 
 ## Priority Levels

@@ -1,5 +1,37 @@
 # API Testing Patterns
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The API testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_LANGUAGE] API testing framework [CURRENT_YEAR]"
+Search: "[YOUR_LANGUAGE] HTTP client testing best practices [CURRENT_YEAR]"
+```
+
+**Framework-specific API testing tools:**
+| Language | HTTP Client | Test Framework | Schema Validation |
+|----------|-------------|----------------|-------------------|
+| JavaScript/TS | Playwright request, Axios, fetch | Jest, Vitest, Playwright | Zod, Joi, Yup |
+| Python | requests, httpx, aiohttp | pytest, unittest | Pydantic, marshmallow |
+| Java | RestAssured, OkHttp | JUnit, TestNG | JSON Schema Validator |
+| Go | net/http, resty | testing, testify | go-playground/validator |
+| C# | HttpClient, RestSharp | NUnit, xUnit | FluentValidation |
+| Ruby | HTTParty, Faraday | RSpec, Minitest | dry-validation |
+| PHP | Guzzle, Symfony HttpClient | PHPUnit, Pest | respect/validation |
+
+**Universal API testing principles (ALL languages):**
+
+- Test APIs directly without browser overhead when validating service logic
+- Use schema validation to verify response structure
+- Test error handling (4xx, 5xx) explicitly
+- Implement retry logic for transient failures
+- Isolate tests with proper setup/teardown
+
 ## Principle
 
 Test APIs and backend services directly without browser overhead. Use Playwright's `request` context for HTTP operations, `apiRequest` utility for enhanced features, and `recurse` for async operations. Pure API tests run faster, are more stable, and provide better coverage for service-layer logic.
@@ -23,16 +55,16 @@ API-first testing provides:
 
 ## When to Use API Tests vs E2E Tests
 
-| Scenario | API Test | E2E Test |
-|----------|----------|----------|
-| CRUD operations | ✅ Primary | ❌ Overkill |
-| Business logic validation | ✅ Primary | ❌ Overkill |
-| Error handling (4xx, 5xx) | ✅ Primary | ⚠️ Supplement |
-| Authentication flows | ✅ Primary | ⚠️ Supplement |
-| Data transformation | ✅ Primary | ❌ Overkill |
-| User journeys | ❌ Can't test | ✅ Primary |
-| Visual regression | ❌ Can't test | ✅ Primary |
-| Cross-browser issues | ❌ Can't test | ✅ Primary |
+| Scenario                  | API Test      | E2E Test      |
+| ------------------------- | ------------- | ------------- |
+| CRUD operations           | ✅ Primary    | ❌ Overkill   |
+| Business logic validation | ✅ Primary    | ❌ Overkill   |
+| Error handling (4xx, 5xx) | ✅ Primary    | ⚠️ Supplement |
+| Authentication flows      | ✅ Primary    | ⚠️ Supplement |
+| Data transformation       | ✅ Primary    | ❌ Overkill   |
+| User journeys             | ❌ Can't test | ✅ Primary    |
+| Visual regression         | ❌ Can't test | ✅ Primary    |
+| Cross-browser issues      | ❌ Can't test | ✅ Primary    |
 
 **Rule of thumb**: If you're testing what the server returns (not how it looks), use API tests.
 
@@ -100,9 +132,7 @@ test.describe('Users API', () => {
 
     const error = await response.json();
     expect(error.code).toBe('VALIDATION_ERROR');
-    expect(error.details).toContainEqual(
-      expect.objectContaining({ field: 'email', message: expect.any(String) })
-    );
+    expect(error.details).toContainEqual(expect.objectContaining({ field: 'email', message: expect.any(String) }));
   });
 });
 ```
@@ -134,7 +164,7 @@ const OrderSchema = z.object({
       productId: z.string(),
       quantity: z.number().positive(),
       price: z.number().positive(),
-    })
+    }),
   ),
   total: z.number().positive(),
   status: z.enum(['pending', 'processing', 'shipped', 'delivered']),
@@ -282,7 +312,7 @@ test.describe('Service Integration', () => {
           baseUrl: INVENTORY_SERVICE_URL,
         }),
       (response) => response.body.quantity === initialInventory.quantity - 2,
-      { timeout: 10000, interval: 500 }
+      { timeout: 10000, interval: 500 },
     );
 
     expect(updatedInventory.quantity).toBe(initialInventory.quantity - 2);
@@ -564,7 +594,7 @@ test.describe('Background Jobs', () => {
         timeout: 60000,
         interval: 2000,
         log: `Waiting for export job ${job.id} to complete`,
-      }
+      },
     );
 
     expect(completedJob.status).toBe('completed');
@@ -587,7 +617,7 @@ test.describe('Background Jobs', () => {
     const { body: failedJob } = await recurse(
       () => apiRequest({ method: 'GET', path: `/api/exports/${job.id}` }),
       (response) => ['completed', 'failed'].includes(response.body.status),
-      { timeout: 30000 }
+      { timeout: 30000 },
     );
 
     expect(failedJob.status).toBe('failed');
@@ -611,7 +641,7 @@ test.describe('Background Jobs', () => {
     const { body: webhookStatus } = await recurse(
       () => apiRequest({ method: 'GET', path: `/api/webhooks/order/${order.id}` }),
       (response) => response.body.delivered === true,
-      { timeout: 30000, interval: 1000 }
+      { timeout: 30000, interval: 1000 },
     );
 
     expect(webhookStatus.delivered).toBe(true);
@@ -730,7 +760,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.API_URL || 'http://localhost:3000',
     extraHTTPHeaders: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
   },
@@ -774,15 +804,15 @@ export default defineConfig({
 
 ## Comparison: API Tests vs E2E Tests
 
-| Aspect | API Test | E2E Test |
-|--------|----------|----------|
-| **Speed** | ~50-100ms per test | ~2-10s per test |
-| **Stability** | Very stable | More flaky (UI timing) |
-| **Setup** | Minimal | Browser, context, page |
-| **Debugging** | Clear request/response | DOM, screenshots, traces |
-| **Coverage** | Service logic | User experience |
-| **Parallelization** | Easy (stateless) | Complex (browser resources) |
-| **CI Cost** | Low (no browser) | High (browser containers) |
+| Aspect              | API Test               | E2E Test                    |
+| ------------------- | ---------------------- | --------------------------- |
+| **Speed**           | ~50-100ms per test     | ~2-10s per test             |
+| **Stability**       | Very stable            | More flaky (UI timing)      |
+| **Setup**           | Minimal                | Browser, context, page      |
+| **Debugging**       | Clear request/response | DOM, screenshots, traces    |
+| **Coverage**        | Service logic          | User experience             |
+| **Parallelization** | Easy (stateless)       | Complex (browser resources) |
+| **CI Cost**         | Low (no browser)       | High (browser containers)   |
 
 ## Related Fragments
 
@@ -834,10 +864,20 @@ test('validate user creation', async ({ apiRequest }) => {
 ```typescript
 // Good: Explicit API test suite
 test.describe('Users API', () => {
-  test('creates user', async ({ apiRequest }) => { /* ... */ });
-  test('handles duplicate email', async ({ apiRequest }) => { /* ... */ });
-  test('validates required fields', async ({ apiRequest }) => { /* ... */ });
-  test('handles malformed JSON', async ({ apiRequest }) => { /* ... */ });
-  test('rate limits requests', async ({ apiRequest }) => { /* ... */ });
+  test('creates user', async ({ apiRequest }) => {
+    /* ... */
+  });
+  test('handles duplicate email', async ({ apiRequest }) => {
+    /* ... */
+  });
+  test('validates required fields', async ({ apiRequest }) => {
+    /* ... */
+  });
+  test('handles malformed JSON', async ({ apiRequest }) => {
+    /* ... */
+  });
+  test('rate limits requests', async ({ apiRequest }) => {
+    /* ... */
+  });
 });
 ```

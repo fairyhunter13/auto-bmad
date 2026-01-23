@@ -1,5 +1,34 @@
 # Non-Functional Requirements (NFR) Criteria
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages, frameworks, and architectures.**
+
+The NFR testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_STACK] NFR testing automation [CURRENT_YEAR]"
+Search: "[YOUR_STACK] security performance testing [CURRENT_YEAR]"
+```
+
+**Universal NFR categories (ALL tech stacks):**
+| Category | Automated Tests | Key Metrics |
+|----------|----------------|-------------|
+| Security | Auth, authz, input validation | OWASP Top 10 coverage |
+| Performance | Load tests, P95/P99 latency | SLO compliance |
+| Reliability | Error handling, circuit breakers | Recovery time, uptime |
+| Maintainability | Coverage, code quality | Test coverage %, duplication |
+
+**NFR testing tools by language:**
+| Language | Security | Performance | Reliability |
+|----------|----------|-------------|-------------|
+| JavaScript/TS | OWASP ZAP, eslint-security | k6, Artillery | Chaos Toolkit |
+| Python | bandit, safety | locust, pytest-benchmark | chaos-monkey |
+| Java | OWASP Dependency-Check | Gatling, JMH | Chaos Monkey for Spring |
+| Go | gosec, govulncheck | go-wrk, vegeta | toxiproxy |
+
 ## Principle
 
 Non-functional requirements (security, performance, reliability, maintainability) are **validated through automated tests**, not checklists. NFR assessment uses objective pass/fail criteria tied to measurable thresholds. Ambiguous requirements default to CONCERNS until clarified.

@@ -1,5 +1,36 @@
 # API Request Utility
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The API request utility principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other languages, fetch current patterns:**
+
+```
+Search: "[YOUR_LANGUAGE] HTTP client testing [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] API testing utility [CURRENT_YEAR]"
+```
+
+**HTTP client libraries by language:**
+| Language | HTTP Client | Schema Validation | Retry Library |
+|----------|-------------|-------------------|---------------|
+| JavaScript/TS | Axios, fetch, Playwright request | Zod, Joi, AJV | axios-retry |
+| Python | requests, httpx | Pydantic, marshmallow | tenacity |
+| Java | OkHttp, RestAssured | JSON Schema, Bean Validation | resilience4j |
+| Go | net/http, resty | go-playground/validator | go-retryablehttp |
+| C# | HttpClient, RestSharp | FluentValidation | Polly |
+| Ruby | HTTParty, Faraday | dry-validation | retriable |
+
+**Universal API request principles (ALL languages):**
+
+- Automatic JSON parsing (don't manually parse responses)
+- Built-in retry for transient failures (5xx errors)
+- Schema validation for response structure
+- Type-safe response bodies (generics/typing)
+- No browser required for pure API testing
+
 ## Principle
 
 Use typed HTTP client with built-in schema validation and automatic retry for server errors. The utility handles URL resolution, header management, response parsing, and single-line response validation with proper TypeScript support. **Works without a browser** - ideal for pure API/service testing.

@@ -3,7 +3,7 @@
 # Test Automation Expansion
 
 **Workflow ID**: `_bmad/bmm/testarch/automate`
-**Version**: 4.0 (BMad v6)
+**Version**: 5.0 (Language Agnostic)
 
 ---
 
@@ -14,7 +14,73 @@ Expands test automation coverage by generating comprehensive test suites at appr
 1. **BMad-Integrated Mode**: Works WITH BMad artifacts (story, tech-spec, PRD, test-design) to expand coverage after story implementation
 2. **Standalone Mode**: Works WITHOUT BMad artifacts - analyzes existing codebase and generates tests independently
 
+**Language Agnostic**: This workflow supports ANY programming language and test framework. Detection happens automatically in Step 0.
+
 **Core Principle**: Generate prioritized, deterministic tests that avoid duplicate coverage and follow testing best practices.
+
+---
+
+## Step 0: Detect Project Environment (MANDATORY)
+
+**CRITICAL**: Before generating ANY test code, you MUST detect the project's language and test framework.
+
+### Actions
+
+1. **Detect Language from Codebase**
+
+   Scan project root for language indicators:
+   - `package.json` → JavaScript/TypeScript (Node.js)
+   - `requirements.txt` / `pyproject.toml` / `setup.py` → Python
+   - `go.mod` → Go
+   - `pom.xml` / `build.gradle` → Java (Maven/Gradle)
+   - `Cargo.toml` → Rust
+   - `*.csproj` / `*.sln` → C# (.NET)
+   - `Gemfile` → Ruby
+   - `composer.json` → PHP
+
+2. **Detect Test Framework**
+
+   Based on language, identify test framework:
+   - **JavaScript/TypeScript**: `playwright.config.*`, `vitest.config.*`, `jest.config.*`, `cypress.config.*`
+   - **Python**: `pytest.ini`, `conftest.py`, `tox.ini`, `unittest` in code
+   - **Go**: `*_test.go` files (native testing), `testify` imports
+   - **Java**: JUnit 5/6 in `pom.xml`, TestNG, Mockito
+   - **Rust**: `#[test]` attributes (native), `cargo test`
+   - **C#**: xUnit, NUnit, MSTest in `*.csproj`
+   - **Ruby**: RSpec (`spec/`), Minitest
+   - **PHP**: PHPUnit (`phpunit.xml`)
+
+3. **Fetch Latest Framework Documentation (MANDATORY)**
+
+   **CRITICAL**: Before generating ANY test code, fetch current documentation:
+
+   ```
+   Search: "[DETECTED_FRAMEWORK] test patterns best practices [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] fixtures factories setup [CURRENT_YEAR]"
+   Search: "[DETECTED_LANGUAGE] testing Given-When-Then [CURRENT_YEAR]"
+   ```
+
+   Include fetch timestamp in generated code comments:
+
+   ```
+   // Generated: [TIMESTAMP]
+   // Framework: [DETECTED_FRAMEWORK] v[VERSION]
+   // Docs fetched: [CURRENT_DATE]
+   ```
+
+4. **Store Detection Results**
+
+   ```yaml
+   detected:
+     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
+     test_framework: '[e.g., Playwright, pytest, go test, JUnit 6]'
+     assertion_library: '[e.g., expect, pytest.assert, testify/assert]'
+     fixture_pattern: '[e.g., test.extend, pytest fixtures, testify suites]'
+     factory_library: '[e.g., faker-js, faker, gofakeit, java-faker]'
+     test_directory: '[e.g., tests/, test/, spec/]'
+   ```
+
+**Halt Condition**: If language cannot be detected, ask user: "What programming language and test framework does this project use?"
 
 ---
 
@@ -25,7 +91,7 @@ Expands test automation coverage by generating comprehensive test suites at appr
 ### Required (Always)
 
 - ✅ Framework scaffolding configured (run `framework` workflow if missing)
-- ✅ Test framework configuration available (playwright.config.ts or cypress.config.ts)
+- ✅ Test framework configuration detected in Step 0
 
 ### Optional (BMad-Integrated Mode)
 
@@ -46,14 +112,22 @@ Expands test automation coverage by generating comprehensive test suites at appr
 
 ### Actions
 
-1. **Detect Execution Mode**
+1. **Verify Step 0 Detection Complete**
+
+   Ensure language and framework detection from Step 0 is available:
+   - Detected language (JavaScript, Python, Go, Java, etc.)
+   - Detected test framework (Playwright, pytest, go test, JUnit, etc.)
+   - Test directory structure
+   - Fixture/factory patterns for this framework
+
+2. **Detect Execution Mode**
 
    Check if BMad artifacts are available:
    - If `{story_file}` variable is set → BMad-Integrated Mode
    - If `{target_feature}` or `{target_files}` set → Standalone Mode
    - If neither set → Auto-discover mode (scan codebase for features needing tests)
 
-2. **Load BMad Artifacts (If Available)**
+3. **Load BMad Artifacts (If Available)**
 
    **BMad-Integrated Mode:**
    - Read story markdown from `{story_file}`
@@ -67,57 +141,64 @@ Expands test automation coverage by generating comprehensive test suites at appr
    - Skip BMad artifact loading
    - Proceed directly to source code analysis
 
-3. **Load Framework Configuration**
-   - Read test framework config (playwright.config.ts or cypress.config.ts)
-   - Identify test directory structure from `{test_dir}`
-   - Check existing test patterns in `{test_dir}`
-   - Note test runner capabilities (parallel execution, fixtures, etc.)
+4. **Load Framework Configuration** (Language-Agnostic)
 
-4. **Analyze Existing Test Coverage**
+   Read test framework config based on detected language:
+   - **JavaScript/TypeScript**: `playwright.config.*`, `jest.config.*`, `vitest.config.*`
+   - **Python**: `pytest.ini`, `conftest.py`, `pyproject.toml`
+   - **Go**: Test files in `*_test.go`, go.mod for dependencies
+   - **Java**: `pom.xml` or `build.gradle` test configuration
+   - **Rust**: `Cargo.toml` test configuration
+   - **C#**: `*.csproj` test project configuration
+   - **Ruby**: `.rspec`, `spec_helper.rb`
+   - **PHP**: `phpunit.xml`
+
+   Extract from config:
+   - Test directory structure from `{test_dir}`
+   - Existing test patterns
+   - Test runner capabilities (parallel execution, fixtures, etc.)
+
+5. **Analyze Existing Test Coverage**
 
    If `{analyze_coverage}` is true:
    - Search `{test_dir}` for existing test files
    - Identify tested features vs untested features
    - Map tests to source files (coverage gaps)
-   - Check existing fixture and factory patterns
+   - Check existing fixture and factory patterns (language-specific)
 
-5. **Check Playwright Utils Flag**
+6. **Check Framework-Specific Utils Flag**
 
    Read `{config_source}` and check `config.tea_use_playwright_utils`.
 
-6. **Load Knowledge Base Fragments**
+   **Note**: This flag is specific to JavaScript/TypeScript Playwright projects. For other languages, use equivalent framework-specific patterns.
+
+7. **Load Knowledge Base Fragments** (Language-Agnostic Principles)
 
    **Critical:** Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` to load:
 
-   **Core Testing Patterns (Always load):**
-   - `test-levels-framework.md` - Test level selection (E2E vs API vs Component vs Unit with decision matrix, 467 lines, 4 examples)
-   - `test-priorities-matrix.md` - Priority classification (P0-P3 with automated scoring, risk mapping, 389 lines, 2 examples)
-   - `data-factories.md` - Factory patterns with faker (overrides, nested factories, API seeding, 498 lines, 5 examples)
-   - `selective-testing.md` - Targeted test execution strategies (tag-based, spec filters, diff-based, promotion rules, 727 lines, 4 examples)
-   - `ci-burn-in.md` - Flaky test detection patterns (10-iteration burn-in, sharding, selective execution, 678 lines, 4 examples)
-   - `test-quality.md` - Test design principles (deterministic, isolated, explicit assertions, length/time limits, 658 lines, 5 examples)
+   **Core Testing Patterns (Always load - universal principles):**
+   - `test-levels-framework.md` - Test level selection (E2E vs API vs Component vs Unit)
+   - `test-priorities-matrix.md` - Priority classification (P0-P3)
+   - `data-factories.md` - Factory patterns (adapt to detected language's faker library)
+   - `selective-testing.md` - Targeted test execution strategies
+   - `ci-burn-in.md` - Flaky test detection patterns
+   - `test-quality.md` - Test design principles (Given-When-Then, isolation, cleanup)
 
-   **If `config.tea_use_playwright_utils: true` (Playwright Utils Integration - All Utilities):**
-   - `overview.md` - Playwright utils installation, design principles, fixture patterns
-   - `api-request.md` - Typed HTTP client with schema validation
-   - `network-recorder.md` - HAR record/playback for offline testing
-   - `auth-session.md` - Token persistence and multi-user support
-   - `intercept-network-call.md` - Network spy/stub with automatic JSON parsing
-   - `recurse.md` - Cypress-style polling for async conditions
-   - `log.md` - Playwright report-integrated logging
-   - `file-utils.md` - CSV/XLSX/PDF/ZIP reading and validation
-   - `burn-in.md` - Smart test selection (relevant for CI test generation)
-   - `network-error-monitor.md` - Automatic HTTP error detection
-   - `fixtures-composition.md` - mergeTests composition patterns
+   **If JavaScript/TypeScript with `config.tea_use_playwright_utils: true`:**
+   - Load Playwright-specific utility fragments (overview.md, api-request.md, etc.)
 
-   **If `config.tea_use_playwright_utils: false` (Traditional Patterns):**
-   - `fixture-architecture.md` - Test fixture patterns (pure function → fixture → mergeTests, auto-cleanup, 406 lines, 5 examples)
-   - `network-first.md` - Route interception patterns (intercept before navigate, HAR capture, deterministic waiting, 489 lines, 5 examples)
+   **For other languages, fetch framework-specific patterns:**
+
+   ```
+   Search: "[DETECTED_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] test factories [CURRENT_YEAR]"
+   Search: "[DETECTED_FRAMEWORK] async testing patterns [CURRENT_YEAR]"
+   ```
 
    **Healing Knowledge (If `{auto_heal_failures}` is true):**
-   - `test-healing-patterns.md` - Common failure patterns and automated fixes (stale selectors, race conditions, dynamic data, network errors, hard waits, 648 lines, 5 examples)
-   - `selector-resilience.md` - Selector debugging and refactoring guide (data-testid > ARIA > text > CSS hierarchy, anti-patterns, 541 lines, 4 examples)
-   - `timing-debugging.md` - Race condition identification and fixes (network-first, deterministic waiting, async debugging, 370 lines, 3 examples)
+   - `test-healing-patterns.md` - Common failure patterns (adapt to detected framework)
+   - `selector-resilience.md` - Selector debugging (for E2E frameworks)
+   - `timing-debugging.md` - Race condition identification
 
 ---
 
@@ -255,318 +336,257 @@ Expands test automation coverage by generating comprehensive test suites at appr
 
 ## Step 3: Generate Test Infrastructure
 
+**CRITICAL**: Before generating ANY infrastructure code, fetch latest patterns for detected framework:
+
+```
+Search: "[DETECTED_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
+Search: "[DETECTED_LANGUAGE] test factory library [CURRENT_YEAR]"
+```
+
 ### Actions
 
-1. **Enhance Fixture Architecture**
+1. **Enhance Fixture Architecture** (Language-Agnostic Pattern)
 
    **Knowledge Base Reference**: `fixture-architecture.md`
 
-   Check existing fixtures in `tests/support/fixtures/`:
-   - If missing or incomplete, create fixture architecture
-   - Use Playwright's `test.extend()` pattern
-   - Ensure all fixtures have auto-cleanup in teardown
+   **Universal fixture principles (apply to ALL languages):**
+   - Setup runs BEFORE each test
+   - Teardown runs AFTER each test (cleanup)
+   - Fixtures provide test data/state to tests
+   - Auto-cleanup prevents test pollution
 
-   **Common fixtures to create/enhance:**
-   - **authenticatedUser**: User with valid session (auto-deletes user after test)
-   - **apiRequest**: Authenticated API client with base URL and headers
-   - **mockNetwork**: Network mocking for external services
-   - **testDatabase**: Database with test data (auto-cleanup after test)
+   **Language-specific fixture patterns:**
 
-   **Example fixture:**
+   | Language              | Fixture Pattern                | Example                        |
+   | --------------------- | ------------------------------ | ------------------------------ |
+   | JavaScript/Playwright | `test.extend()`                | Extend base test with fixtures |
+   | JavaScript/Jest       | `beforeEach`/`afterEach`       | Setup/teardown hooks           |
+   | Python/pytest         | `@pytest.fixture`              | Decorator-based fixtures       |
+   | Go                    | `TestMain`, `t.Cleanup()`      | Test setup and cleanup         |
+   | Java/JUnit            | `@BeforeEach`/`@AfterEach`     | Lifecycle annotations          |
+   | Rust                  | `#[test]` with setup functions | Function-based setup           |
+   | C#/xUnit              | `IClassFixture<T>`             | Shared fixtures                |
+   | Ruby/RSpec            | `let`, `before`, `after`       | DSL-based fixtures             |
 
-   ```typescript
-   // tests/support/fixtures/auth.fixture.ts
-   import { test as base } from '@playwright/test';
-   import { createUser, deleteUser } from '../factories/user.factory';
+   **Common fixtures to create (adapt for detected language):**
+   - **authenticatedUser**: User with valid session (auto-cleanup)
+   - **apiClient**: Authenticated HTTP client
+   - **mockNetwork**: Network mocking/stubbing
+   - **testDatabase**: Database with test data (auto-cleanup)
 
-   export const test = base.extend({
-     authenticatedUser: async ({ page }, use) => {
-       // Setup: Create and authenticate user
-       const user = await createUser();
-       await page.goto('/login');
-       await page.fill('[data-testid="email"]', user.email);
-       await page.fill('[data-testid="password"]', user.password);
-       await page.click('[data-testid="login-button"]');
-       await page.waitForURL('/dashboard');
+   **Fetch framework-specific fixture example:**
 
-       // Provide to test
-       await use(user);
-
-       // Cleanup: Delete user automatically
-       await deleteUser(user.id);
-     },
-   });
+   ```
+   Search: "[DETECTED_FRAMEWORK] fixture example with cleanup [CURRENT_YEAR]"
    ```
 
-2. **Enhance Data Factories**
+   Include generation timestamp in fixture comments.
+
+2. **Enhance Data Factories** (Language-Agnostic Pattern)
 
    **Knowledge Base Reference**: `data-factories.md`
 
-   Check existing factories in `tests/support/factories/`:
-   - If missing or incomplete, create factory architecture
-   - Use `@faker-js/faker` for all random data (no hardcoded values)
-   - Support overrides for specific test scenarios
+   **Universal factory principles (apply to ALL languages):**
+   - Generate realistic fake data (no hardcoded values)
+   - Support overrides for specific scenarios
+   - Create nested/related objects
+   - Provide cleanup helpers
 
-   **Common factories to create/enhance:**
+   **Language-specific faker libraries:**
+
+   | Language   | Faker Library     | Install Command                       |
+   | ---------- | ----------------- | ------------------------------------- |
+   | JavaScript | `@faker-js/faker` | `npm install @faker-js/faker`         |
+   | Python     | `faker`           | `pip install faker`                   |
+   | Go         | `gofakeit`        | `go get github.com/brianvoe/gofakeit` |
+   | Java       | `javafaker`       | Maven/Gradle dependency               |
+   | Rust       | `fake`            | `cargo add fake`                      |
+   | C#         | `Bogus`           | `dotnet add package Bogus`            |
+   | Ruby       | `faker`           | `gem install faker`                   |
+   | PHP        | `fakerphp/faker`  | `composer require fakerphp/faker`     |
+
+   **Fetch factory example for detected language:**
+
+   ```
+   Search: "[DETECTED_LANGUAGE] [FAKER_LIBRARY] factory pattern [CURRENT_YEAR]"
+   ```
+
+   **Common factories to create (adapt for detected language):**
    - User factory (email, password, name, role)
    - Product factory (name, price, description, SKU)
    - Order factory (items, total, status, customer)
 
-   **Example factory:**
-
-   ```typescript
-   // tests/support/factories/user.factory.ts
-   import { faker } from '@faker-js/faker';
-
-   export const createUser = (overrides = {}) => ({
-     id: faker.number.int(),
-     email: faker.internet.email(),
-     password: faker.internet.password(),
-     name: faker.person.fullName(),
-     role: 'user',
-     createdAt: faker.date.recent().toISOString(),
-     ...overrides,
-   });
-
-   export const createUsers = (count: number) => Array.from({ length: count }, () => createUser());
-
-   // API helper for cleanup
-   export const deleteUser = async (userId: number) => {
-     await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-   };
-   ```
-
-3. **Create/Enhance Helper Utilities**
+3. **Create/Enhance Helper Utilities** (Language-Agnostic)
 
    If `{update_helpers}` is true:
 
-   Check `tests/support/helpers/` for common utilities:
-   - **waitFor**: Polling helper for complex conditions
+   **Common utilities to create (adapt for detected language):**
+   - **waitFor/poll**: Polling helper for async conditions
    - **retry**: Retry helper for flaky operations
    - **testData**: Test data generation helpers
    - **assertions**: Custom assertion helpers
 
-   **Example helper:**
+   **Fetch helper patterns for detected language:**
 
-   ```typescript
-   // tests/support/helpers/wait-for.ts
-   export const waitFor = async (condition: () => Promise<boolean>, timeout = 5000, interval = 100): Promise<void> => {
-     const startTime = Date.now();
-     while (Date.now() - startTime < timeout) {
-       if (await condition()) return;
-       await new Promise((resolve) => setTimeout(resolve, interval));
-     }
-     throw new Error(`Condition not met within ${timeout}ms`);
-   };
+   ```
+   Search: "[DETECTED_FRAMEWORK] async wait helper [CURRENT_YEAR]"
+   Search: "[DETECTED_LANGUAGE] retry pattern testing [CURRENT_YEAR]"
    ```
 
 ---
 
 ## Step 4: Generate Test Files
 
+**CRITICAL**: Before generating test code, fetch latest syntax for detected framework:
+
+```
+Search: "[DETECTED_FRAMEWORK] test syntax [CURRENT_YEAR]"
+Search: "[DETECTED_FRAMEWORK] assertion examples [CURRENT_YEAR]"
+```
+
 ### Actions
 
-1. **Create Test File Structure**
+1. **Create Test File Structure** (Language-Specific Naming)
 
-   ```
-   tests/
-   ├── e2e/
-   │   └── {feature-name}.spec.ts        # E2E tests (P0-P1)
-   ├── api/
-   │   └── {feature-name}.api.spec.ts    # API tests (P1-P2)
-   ├── component/
-   │   └── {ComponentName}.test.tsx      # Component tests (P1-P2)
-   ├── unit/
-   │   └── {module-name}.test.ts         # Unit tests (P2-P3)
-   └── support/
-       ├── fixtures/                      # Test fixtures
-       ├── factories/                     # Data factories
-       └── helpers/                       # Utility functions
-   ```
+   **Adapt file extensions and naming conventions for detected language:**
+
+   | Language              | E2E Tests             | API Tests       | Unit Tests   |
+   | --------------------- | --------------------- | --------------- | ------------ |
+   | JavaScript/TypeScript | `*.spec.ts`           | `*.api.spec.ts` | `*.test.ts`  |
+   | Python                | `test_*.py`           | `test_*_api.py` | `test_*.py`  |
+   | Go                    | `*_test.go`           | `*_api_test.go` | `*_test.go`  |
+   | Java                  | `*Test.java`          | `*ApiTest.java` | `*Test.java` |
+   | Rust                  | `mod tests` in source | `*_api_test.rs` | `mod tests`  |
+   | C#                    | `*Tests.cs`           | `*ApiTests.cs`  | `*Tests.cs`  |
+   | Ruby                  | `*_spec.rb`           | `*_api_spec.rb` | `*_spec.rb`  |
+   | PHP                   | `*Test.php`           | `*ApiTest.php`  | `*Test.php`  |
 
 2. **Write E2E Tests (If Applicable)**
 
-   **Follow Given-When-Then format:**
+   **CRITICAL**: Fetch framework-specific E2E syntax before generating:
 
-   ```typescript
-   import { test, expect } from '@playwright/test';
-
-   test.describe('User Authentication', () => {
-     test('[P0] should login with valid credentials and load dashboard', async ({ page }) => {
-       // GIVEN: User is on login page
-       await page.goto('/login');
-
-       // WHEN: User submits valid credentials
-       await page.fill('[data-testid="email-input"]', 'user@example.com');
-       await page.fill('[data-testid="password-input"]', 'Password123!');
-       await page.click('[data-testid="login-button"]');
-
-       // THEN: User is redirected to dashboard
-       await expect(page).toHaveURL('/dashboard');
-       await expect(page.locator('[data-testid="user-name"]')).toBeVisible();
-     });
-
-     test('[P1] should display error for invalid credentials', async ({ page }) => {
-       // GIVEN: User is on login page
-       await page.goto('/login');
-
-       // WHEN: User submits invalid credentials
-       await page.fill('[data-testid="email-input"]', 'invalid@example.com');
-       await page.fill('[data-testid="password-input"]', 'wrongpassword');
-       await page.click('[data-testid="login-button"]');
-
-       // THEN: Error message is displayed
-       await expect(page.locator('[data-testid="error-message"]')).toHaveText('Invalid email or password');
-     });
-   });
+   ```
+   Search: "[DETECTED_E2E_FRAMEWORK] test example [CURRENT_YEAR]"
    ```
 
-   **Critical patterns:**
+   **Universal Given-When-Then pattern (adapt syntax for detected framework):**
+
+   ```
+   // Generated: [TIMESTAMP]
+   // Framework: [DETECTED_FRAMEWORK]
+
+   [FRAMEWORK_TEST_STRUCTURE] 'User Authentication' {
+
+     [TEST_FUNCTION] '[P0] should login with valid credentials and load dashboard' {
+       // GIVEN: User is on login page
+       [NAVIGATE_TO]('/login')
+
+       // WHEN: User submits valid credentials
+       [FILL_INPUT]('[data-testid="email-input"]', 'user@example.com')
+       [FILL_INPUT]('[data-testid="password-input"]', 'Password123!')
+       [CLICK]('[data-testid="login-button"]')
+
+       // THEN: User is redirected to dashboard
+       [ASSERT_URL]('/dashboard')
+       [ASSERT_VISIBLE]('[data-testid="user-name"]')
+     }
+   }
+   ```
+
+   **Critical patterns (universal for ALL frameworks):**
    - Tag tests with priority: `[P0]`, `[P1]`, `[P2]`, `[P3]` in test name
    - One assertion per test (atomic tests)
    - Explicit waits (no hard waits/sleeps)
-   - Network-first approach (route interception before navigation)
-   - data-testid selectors for stability
+   - Network-first approach (setup mocks before navigation)
+   - Stable selectors (data-testid, ARIA roles, semantic HTML)
    - Clear Given-When-Then structure
 
 3. **Write API Tests (If Applicable)**
 
-   ```typescript
-   import { test, expect } from '@playwright/test';
+   **Fetch framework-specific API testing syntax:**
 
-   test.describe('User Authentication API', () => {
-     test('[P1] POST /api/auth/login - should return token for valid credentials', async ({ request }) => {
-       // GIVEN: Valid user credentials
-       const credentials = {
-         email: 'user@example.com',
-         password: 'Password123!',
-       };
+   ```
+   Search: "[DETECTED_FRAMEWORK] API testing HTTP requests [CURRENT_YEAR]"
+   ```
 
-       // WHEN: Logging in via API
-       const response = await request.post('/api/auth/login', {
-         data: credentials,
-       });
+   **Universal API test pattern (adapt for detected framework):**
 
-       // THEN: Returns 200 and JWT token
-       expect(response.status()).toBe(200);
-       const body = await response.json();
-       expect(body).toHaveProperty('token');
-       expect(body.token).toMatch(/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/); // JWT format
-     });
+   ```
+   [TEST_FUNCTION] '[P1] POST /api/auth/login - should return token for valid credentials' {
+     // GIVEN: Valid user credentials
+     credentials = { email: 'user@example.com', password: 'Password123!' }
 
-     test('[P1] POST /api/auth/login - should return 401 for invalid credentials', async ({ request }) => {
-       // GIVEN: Invalid credentials
-       const credentials = {
-         email: 'invalid@example.com',
-         password: 'wrongpassword',
-       };
+     // WHEN: Logging in via API
+     response = [HTTP_POST]('/api/auth/login', credentials)
 
-       // WHEN: Attempting login
-       const response = await request.post('/api/auth/login', {
-         data: credentials,
-       });
-
-       // THEN: Returns 401 with error
-       expect(response.status()).toBe(401);
-       const body = await response.json();
-       expect(body).toMatchObject({
-         error: 'Invalid credentials',
-       });
-     });
-   });
+     // THEN: Returns 200 and JWT token
+     [ASSERT_STATUS](response, 200)
+     [ASSERT_HAS_PROPERTY](response.body, 'token')
+     [ASSERT_MATCHES](response.body.token, JWT_PATTERN)
+   }
    ```
 
 4. **Write Component Tests (If Applicable)**
 
    **Knowledge Base Reference**: `component-tdd.md`
 
-   ```typescript
-   import { test, expect } from '@playwright/experimental-ct-react';
-   import { LoginForm } from './LoginForm';
+   **Fetch framework-specific component testing syntax:**
 
-   test.describe('LoginForm Component', () => {
-     test('[P1] should disable submit button when fields are empty', async ({ mount }) => {
-       // GIVEN: LoginForm is mounted
-       const component = await mount(<LoginForm />);
-
-       // WHEN: Form is initially rendered
-       const submitButton = component.locator('button[type="submit"]');
-
-       // THEN: Submit button is disabled
-       await expect(submitButton).toBeDisabled();
-     });
-
-     test('[P1] should enable submit button when fields are filled', async ({ mount }) => {
-       // GIVEN: LoginForm is mounted
-       const component = await mount(<LoginForm />);
-
-       // WHEN: User fills in email and password
-       await component.locator('[data-testid="email-input"]').fill('user@example.com');
-       await component.locator('[data-testid="password-input"]').fill('Password123!');
-
-       // THEN: Submit button is enabled
-       const submitButton = component.locator('button[type="submit"]');
-       await expect(submitButton).toBeEnabled();
-     });
-   });
    ```
+   Search: "[DETECTED_LANGUAGE] component testing [CURRENT_YEAR]"
+   ```
+
+   **Component testing frameworks by language:**
+   - **JavaScript/React**: Playwright CT, Testing Library, Vitest
+   - **JavaScript/Vue**: Vue Test Utils, Vitest
+   - **Python/Django**: pytest-django
+   - **Go**: Native testing with template rendering
+   - **Java/Spring**: MockMvc, WebTestClient
+   - **C#/Blazor**: bUnit
 
 5. **Write Unit Tests (If Applicable)**
 
-   ```typescript
-   import { validateEmail } from './validation';
+   **Fetch framework-specific unit test syntax:**
 
-   describe('Email Validation', () => {
-     test('[P2] should return true for valid email', () => {
-       // GIVEN: Valid email address
-       const email = 'user@example.com';
+   ```
+   Search: "[DETECTED_FRAMEWORK] unit test example [CURRENT_YEAR]"
+   ```
 
-       // WHEN: Validating email
-       const result = validateEmail(email);
+   **Universal unit test pattern:**
 
-       // THEN: Returns true
-       expect(result).toBe(true);
-     });
+   ```
+   [TEST_FUNCTION] '[P2] should return true for valid email' {
+     // GIVEN: Valid email address
+     email = 'user@example.com'
 
-     test('[P2] should return false for malformed email', () => {
-       // GIVEN: Malformed email addresses
-       const invalidEmails = ['notanemail', '@example.com', 'user@', 'user @example.com'];
+     // WHEN: Validating email
+     result = validateEmail(email)
 
-       // WHEN/THEN: Each should fail validation
-       invalidEmails.forEach((email) => {
-         expect(validateEmail(email)).toBe(false);
-       });
-     });
-   });
+     // THEN: Returns true
+     [ASSERT_TRUE](result)
+   }
    ```
 
 6. **Apply Network-First Pattern (E2E tests)**
 
    **Knowledge Base Reference**: `network-first.md`
 
-   **Critical pattern to prevent race conditions:**
+   **Critical pattern (adapt for detected E2E framework):**
+   - Playwright: `page.route()` before `page.goto()`
+   - Cypress: `cy.intercept()` before `cy.visit()`
+   - Selenium: Proxy setup or mock server
+   - Others: Framework-specific network mocking
 
-   ```typescript
-   test('should load user dashboard after login', async ({ page }) => {
-     // CRITICAL: Intercept routes BEFORE navigation
-     await page.route('**/api/user', (route) =>
-       route.fulfill({
-         status: 200,
-         body: JSON.stringify({ id: 1, name: 'Test User' }),
-       }),
-     );
+   **Fetch framework-specific mocking syntax:**
 
-     // NOW navigate
-     await page.goto('/dashboard');
-
-     await expect(page.locator('[data-testid="user-name"]')).toHaveText('Test User');
-   });
+   ```
+   Search: "[DETECTED_E2E_FRAMEWORK] network mocking [CURRENT_YEAR]"
    ```
 
-7. **Enforce Quality Standards**
+7. **Enforce Quality Standards** (Universal)
 
-   **For every test:**
-   - ✅ Uses Given-When-Then format
+   **For every test (ALL languages):**
+   - ✅ Uses Given-When-Then format (comments or structure)
    - ✅ Has clear, descriptive name with priority tag
    - ✅ One assertion per test (atomic)
    - ✅ No hard waits or sleeps (use explicit waits)
@@ -1079,99 +1099,102 @@ Expands test automation coverage by generating comprehensive test suites at appr
 
 Use E2E sparingly for critical paths. Use API/Component for variations and edge cases.
 
-### Priority Tagging
+### Priority Tagging (Universal Pattern)
 
-**Tag every test with priority in test name:**
+**Tag every test with priority in test name (ALL frameworks):**
 
-```typescript
-test('[P0] should login with valid credentials', async ({ page }) => { ... });
-test('[P1] should display error for invalid credentials', async ({ page }) => { ... });
-test('[P2] should remember login preference', async ({ page }) => { ... });
+```
+// Pattern: '[P{N}] should {behavior}'
+[TEST] '[P0] should login with valid credentials' { ... }
+[TEST] '[P1] should display error for invalid credentials' { ... }
+[TEST] '[P2] should remember login preference' { ... }
 ```
 
-**Enables selective test execution:**
+**Selective execution by framework:**
 
-```bash
-# Run only P0 tests (critical paths)
-npm run test:e2e -- --grep "@P0"
+| Framework       | Run P0 Only             | Run P0+P1           |
+| --------------- | ----------------------- | ------------------- |
+| Playwright/Jest | `--grep "@P0"`          | `--grep "@P0\|@P1"` |
+| pytest          | `-k "P0"`               | `-k "P0 or P1"`     |
+| go test         | `-run "P0"`             | `-run "P0\|P1"`     |
+| JUnit           | `@Tag("P0")` annotation | Tags annotation     |
+| RSpec           | `--tag p0`              | `--tag p0 --tag p1` |
 
-# Run P0 + P1 tests (pre-merge)
-npm run test:e2e -- --grep "@P0|@P1"
+### No Page Objects (Recommendation)
+
+**Prefer direct test code over page object abstractions.** Keep tests simple:
+
 ```
+// ✅ CORRECT: Direct test (adapt syntax for detected framework)
+[TEST] 'should login' {
+  [NAVIGATE]('/login')
+  [FILL]('[data-testid="email"]', 'user@example.com')
+  [CLICK]('[data-testid="login-button"]')
+  [ASSERT_URL]('/dashboard')
+}
 
-### No Page Objects
-
-**Do NOT create page object classes.** Keep tests simple and direct:
-
-```typescript
-// ✅ CORRECT: Direct test
-test('should login', async ({ page }) => {
-  await page.goto('/login');
-  await page.fill('[data-testid="email"]', 'user@example.com');
-  await page.click('[data-testid="login-button"]');
-  await expect(page).toHaveURL('/dashboard');
-});
-
-// ❌ WRONG: Page object abstraction
+// ❌ AVOID: Page object abstraction adds indirection
 class LoginPage {
-  async login(email, password) { ... }
+  login(email, password) { ... }
 }
 ```
 
 Use fixtures for setup/teardown, not page objects for actions.
 
-### Deterministic Tests Only
+### Deterministic Tests Only (Universal)
 
-**No flaky patterns allowed:**
+**No flaky patterns allowed (applies to ALL frameworks):**
 
-```typescript
-// ❌ WRONG: Hard wait
-await page.waitForTimeout(2000);
+```
+// ❌ WRONG: Hard wait (sleep/delay)
+[WAIT_FIXED_TIME](2000)  // Never use this!
 
-// ✅ CORRECT: Explicit wait
-await page.waitForSelector('[data-testid="user-name"]');
-await expect(page.locator('[data-testid="user-name"]')).toBeVisible();
+// ✅ CORRECT: Explicit wait for condition
+[WAIT_FOR_ELEMENT]('[data-testid="user-name"]')
+[ASSERT_VISIBLE]('[data-testid="user-name"]')
 
 // ❌ WRONG: Conditional flow
-if (await element.isVisible()) {
-  await element.click();
+if ([IS_VISIBLE](element)) {
+  [CLICK](element)
 }
 
 // ✅ CORRECT: Deterministic assertion
-await expect(element).toBeVisible();
-await element.click();
+[ASSERT_VISIBLE](element)
+[CLICK](element)
 
-// ❌ WRONG: Try-catch for test logic
+// ❌ WRONG: Swallowing errors
 try {
-  await element.click();
+  [CLICK](element)
 } catch (e) {
   // Test shouldn't catch errors
 }
 
 // ✅ CORRECT: Let test fail if element not found
-await element.click();
+[CLICK](element)  // Will fail clearly if not found
 ```
 
-### Self-Cleaning Tests
+### Self-Cleaning Tests (Universal)
 
-**Every test must clean up its data:**
+**Every test must clean up its data (adapt for detected framework):**
 
-```typescript
-// ✅ CORRECT: Fixture with auto-cleanup
-export const test = base.extend({
-  testUser: async ({ page }, use) => {
-    const user = await createUser();
-    await use(user);
-    await deleteUser(user.id); // Auto-cleanup
-  },
-});
+```
+// ✅ CORRECT: Fixture/setup with auto-cleanup
+[FIXTURE] testUser {
+  [SETUP] {
+    user = createUser()
+    return user
+  }
+  [TEARDOWN] {
+    deleteUser(user.id)  // Auto-cleanup
+  }
+}
 
 // ❌ WRONG: Manual cleanup (can be forgotten)
-test('should login', async ({ page }) => {
-  const user = await createUser();
+[TEST] 'should login' {
+  user = createUser()
   // ... test logic ...
-  // Forgot to delete user!
-});
+  // Forgot to delete user! Test pollution!
+}
 ```
 
 ### File Size Limits
@@ -1182,28 +1205,34 @@ test('should login', async ({ page }) => {
 - Group related tests in describe blocks
 - Extract common setup to fixtures
 
-### Knowledge Base Integration
+### Knowledge Base Integration (Language-Agnostic Principles)
 
-**Core Fragments (Auto-loaded in Step 1):**
+**Core Fragments (Auto-loaded in Step 1 - universal principles):**
 
-- `test-levels-framework.md` - E2E vs API vs Component vs Unit decision framework with characteristics matrix (467 lines, 4 examples)
-- `test-priorities-matrix.md` - P0-P3 classification with automated scoring and risk mapping (389 lines, 2 examples)
-- `fixture-architecture.md` - Pure function → fixture → mergeTests composition with auto-cleanup (406 lines, 5 examples)
-- `data-factories.md` - Factory patterns with faker: overrides, nested factories, API seeding (498 lines, 5 examples)
-- `selective-testing.md` - Tag-based, spec filters, diff-based selection, promotion rules (727 lines, 4 examples)
-- `ci-burn-in.md` - 10-iteration burn-in loop, parallel sharding, selective execution (678 lines, 4 examples)
-- `test-quality.md` - Deterministic tests, isolated with cleanup, explicit assertions, length/time optimization (658 lines, 5 examples)
-- `network-first.md` - Intercept before navigate, HAR capture, deterministic waiting strategies (489 lines, 5 examples)
+- `test-levels-framework.md` - E2E vs API vs Component vs Unit decision framework
+- `test-priorities-matrix.md` - P0-P3 classification with risk mapping
+- `data-factories.md` - Factory patterns (adapt for detected faker library)
+- `selective-testing.md` - Tag-based, spec filters, diff-based selection
+- `ci-burn-in.md` - 10-iteration burn-in loop, sharding
+- `test-quality.md` - Deterministic tests, isolation, cleanup, assertions
 
-**Healing Fragments (Auto-loaded if `{auto_heal_failures}` enabled):**
+**Framework-Specific Patterns (fetch via web search):**
 
-- `test-healing-patterns.md` - Common failure patterns: stale selectors, race conditions, dynamic data, network errors, hard waits (648 lines, 5 examples)
-- `selector-resilience.md` - Selector hierarchy (data-testid > ARIA > text > CSS), dynamic patterns, anti-patterns refactoring (541 lines, 4 examples)
-- `timing-debugging.md` - Race condition prevention, deterministic waiting, async debugging techniques (370 lines, 3 examples)
+```
+Search: "[DETECTED_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
+Search: "[DETECTED_FRAMEWORK] test factories [CURRENT_YEAR]"
+Search: "[DETECTED_FRAMEWORK] network mocking [CURRENT_YEAR]"
+```
+
+**Healing Fragments (If `{auto_heal_failures}` enabled):**
+
+- `test-healing-patterns.md` - Common failure patterns (adapt to detected framework)
+- `selector-resilience.md` - Selector best practices (for E2E frameworks)
+- `timing-debugging.md` - Race condition prevention
 
 **Manual Reference (Optional):**
 
-- Use `tea-index.csv` to find additional specialized fragments as needed
+- Use `tea-index.csv` for additional specialized fragments
 
 ---
 
@@ -1216,6 +1245,9 @@ After completing this workflow, provide a summary:
 
 **Mode:** {standalone_mode ? "Standalone" : "BMad-Integrated"}
 **Target:** {story_id || target_feature || "Auto-discovered features"}
+**Language:** {DETECTED_LANGUAGE}
+**Framework:** {DETECTED_TEST_FRAMEWORK}
+**Generated:** {TIMESTAMP}
 
 **Tests Created:**
 
@@ -1227,27 +1259,32 @@ After completing this workflow, provide a summary:
 **Infrastructure:**
 
 - Fixtures: {fixture_count} created/enhanced
-- Factories: {factory_count} created/enhanced
+- Factories: {factory_count} created/enhanced (using {FAKER_LIBRARY})
 - Helpers: {helper_count} created/enhanced
 
 **Documentation Updated:**
 
 - ✅ Test README with execution instructions
-- ✅ package.json scripts for test execution
+- ✅ Test scripts configured for detected framework
 
-**Test Execution:**
+**Test Execution (use detected commands):**
 
 ```bash
 # Run all tests
-npm run test:e2e
+{TEST_COMMAND}
 
-# Run by priority
-npm run test:e2e:p0  # Critical paths only
-npm run test:e2e:p1  # P0 + P1 tests
+# Run by priority (framework-specific filtering)
+{TEST_COMMAND_P0}  # Critical paths only
+{TEST_COMMAND_P1}  # P0 + P1 tests
 
 # Run specific file
-npm run test:e2e -- {first_test_file}
+{TEST_COMMAND} {first_test_file}
 ```
+
+**Documentation Fetched:**
+
+- {DETECTED_FRAMEWORK} test patterns ({CURRENT_YEAR})
+- {DETECTED_LANGUAGE} {FAKER_LIBRARY} factory examples
 ````
 
 **Coverage Status:**
@@ -1261,8 +1298,8 @@ npm run test:e2e -- {first_test_file}
 
 - ✅ All tests follow Given-When-Then format
 - ✅ All tests have priority tags
-- ✅ All tests use data-testid selectors
-- ✅ All tests are self-cleaning
+- ✅ All tests use stable selectors (data-testid, ARIA, semantic)
+- ✅ All tests are self-cleaning (fixtures with auto-cleanup)
 - ✅ No hard waits or flaky patterns
 - ✅ All test files under {max_file_lines} lines
 
@@ -1279,8 +1316,8 @@ npm run test:e2e -- {first_test_file}
 
 - Test level selection framework (E2E vs API vs Component vs Unit)
 - Priority classification (P0-P3)
-- Fixture architecture patterns with auto-cleanup
-- Data factory patterns using faker
+- {DETECTED_FRAMEWORK} fixture patterns (fetched {CURRENT_DATE})
+- {FAKER_LIBRARY} factory patterns (fetched {CURRENT_DATE})
 - Selective testing strategies
 - Test quality principles
 

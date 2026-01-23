@@ -1,5 +1,42 @@
 # Email-Based Authentication Testing
 
+## Language Agnostic
+
+**This knowledge fragment applies to ALL programming languages and test frameworks.**
+
+The email-based authentication testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
+
+**Before generating code for other frameworks, fetch current patterns:**
+
+```
+Search: "[YOUR_LANGUAGE] email testing Mailosaur [CURRENT_YEAR]"
+Search: "[YOUR_FRAMEWORK] magic link testing [CURRENT_YEAR]"
+```
+
+**Email capture services (language-agnostic):**
+| Service | API | Features | Pricing |
+|---------|-----|----------|---------|
+| Mailosaur | REST | Link extraction, attachments, spam testing | Paid |
+| Ethereal | SMTP/IMAP | Free testing, disposable emails | Free |
+| Mailtrap | REST/SMTP | Team inbox, API testing | Freemium |
+| GuerrillaMail | REST | Disposable addresses | Free |
+
+**Framework-specific email testing libraries:**
+| Language | Library | Notes |
+|----------|---------|-------|
+| JavaScript/TS | mailosaur, nodemailer | Playwright/Cypress compatible |
+| Python | mailosaur-python, smtplib | pytest fixtures |
+| Java | mailosaur-java | JUnit integration |
+| Go | mailosaur-go | Native HTTP client |
+| Ruby | mailosaur-ruby | RSpec compatible |
+
+**Universal email auth testing principles (ALL frameworks):**
+
+- Use email capture service (not real emails)
+- Cache email payloads to avoid quota exhaustion
+- Preserve browser session when clicking magic links
+- Test expired/reused link scenarios
+
 ## Principle
 
 Email-based authentication (magic links, one-time codes, passwordless login) requires specialized testing with email capture services like Mailosaur or Ethereal. Extract magic links via HTML parsing or use built-in link extraction, preserve browser storage (local/session/cookies) when processing links, cache email payloads to avoid exhausting inbox quotas, and cover negative cases (expired links, reused links, multiple rapid requests). Log email IDs and links for troubleshooting, but scrub PII before committing artifacts.
