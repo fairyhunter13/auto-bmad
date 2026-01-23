@@ -46,7 +46,13 @@ func handleProjectScan(params json.RawMessage) (interface{}, error) {
 		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
 	}
 
-	result, err := project.Scan(p.Path)
+	// Validate and sanitize the path to prevent path traversal attacks
+	validatedPath, err := ValidateProjectPath(p.Path)
+	if err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid path", err.Error())
+	}
+
+	result, err := project.Scan(validatedPath)
 	if err != nil {
 		return nil, NewErrorWithData(ErrCodeInternalError, "Failed to scan project", err.Error())
 	}
@@ -81,8 +87,14 @@ func handleAddRecent(params json.RawMessage) (interface{}, error) {
 		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
 	}
 
+	// Validate and sanitize the path to prevent path traversal attacks
+	validatedPath, err := ValidateProjectPath(p.Path)
+	if err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid path", err.Error())
+	}
+
 	rm := project.GetRecentManager()
-	if err := rm.Add(p.Path); err != nil {
+	if err := rm.Add(validatedPath); err != nil {
 		return nil, NewErrorWithData(ErrCodeInternalError, "Failed to add recent project", err.Error())
 	}
 
@@ -105,8 +117,18 @@ func handleRemoveRecent(params json.RawMessage) (interface{}, error) {
 		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
 	}
 
+	// Validate path (allow non-existent since we're removing it anyway)
+	validator := &PathValidator{
+		AllowNonExistent: true,
+		RequireDirectory: false,
+	}
+	validatedPath, err := validator.Validate(p.Path)
+	if err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid path", err.Error())
+	}
+
 	rm := project.GetRecentManager()
-	if err := rm.Remove(p.Path); err != nil {
+	if err := rm.Remove(validatedPath); err != nil {
 		return nil, NewErrorWithData(ErrCodeInternalError, "Failed to remove recent project", err.Error())
 	}
 
@@ -130,8 +152,14 @@ func handleSetContext(params json.RawMessage) (interface{}, error) {
 		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
 	}
 
+	// Validate and sanitize the path to prevent path traversal attacks
+	validatedPath, err := ValidateProjectPath(p.Path)
+	if err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid path", err.Error())
+	}
+
 	rm := project.GetRecentManager()
-	if err := rm.SetContext(p.Path, p.Context); err != nil {
+	if err := rm.SetContext(validatedPath, p.Context); err != nil {
 		return nil, NewErrorWithData(ErrCodeInternalError, "Failed to set project context", err.Error())
 	}
 

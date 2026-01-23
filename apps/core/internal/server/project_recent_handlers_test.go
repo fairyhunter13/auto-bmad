@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/fairyhunter13/auto-bmad/apps/core/internal/project"
@@ -35,8 +37,18 @@ func TestHandleGetRecent(t *testing.T) {
 func TestHandleAddRecent(t *testing.T) {
 	project.InitRecentManager()
 
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "addrecent-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Get absolute path
+	absPath, _ := filepath.Abs(tempDir)
+
 	params := AddRecentParams{
-		Path: "/home/user/test-project",
+		Path: absPath,
 	}
 	paramsJSON, _ := json.Marshal(params)
 
@@ -49,20 +61,21 @@ func TestHandleAddRecent(t *testing.T) {
 		t.Errorf("Expected nil result, got %v", result)
 	}
 
-	// Verify project was added
+	// Verify project was added (using the validated path which may be resolved)
 	rm := project.GetRecentManager()
 	projects, _ := rm.GetAll()
 
 	found := false
 	for _, p := range projects {
-		if p.Path == "/home/user/test-project" {
+		// Compare resolved paths
+		if p.Path == absPath || filepath.Clean(p.Path) == filepath.Clean(absPath) {
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		t.Error("Project was not added to recent list")
+		t.Errorf("Project was not added to recent list. Added path: %s, Projects: %+v", absPath, projects)
 	}
 }
 
@@ -112,11 +125,22 @@ func TestHandleSetContext(t *testing.T) {
 	project.InitRecentManager()
 	rm := project.GetRecentManager()
 
-	// Add a project first
-	rm.Add("/home/user/my-project")
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "setcontext-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Get absolute path and resolve it (like the validator does)
+	absPath, _ := filepath.Abs(tempDir)
+	resolvedPath, _ := filepath.EvalSymlinks(absPath)
+
+	// Add a project first (directly to recent manager, bypassing validation)
+	rm.Add(resolvedPath)
 
 	params := SetContextParams{
-		Path:    "/home/user/my-project",
+		Path:    absPath,
 		Context: "This is a test project for Auto-BMAD",
 	}
 	paramsJSON, _ := json.Marshal(params)
@@ -130,10 +154,10 @@ func TestHandleSetContext(t *testing.T) {
 		t.Errorf("Expected nil result, got %v", result)
 	}
 
-	// Verify context was set
+	// Verify context was set (check both original and resolved paths)
 	projects, _ := rm.GetAll()
 	for _, p := range projects {
-		if p.Path == "/home/user/my-project" {
+		if p.Path == resolvedPath || p.Path == absPath {
 			if p.Context != "This is a test project for Auto-BMAD" {
 				t.Errorf("Expected context to be set, got: %s", p.Context)
 			}
@@ -141,7 +165,7 @@ func TestHandleSetContext(t *testing.T) {
 		}
 	}
 
-	t.Error("Project not found after setting context")
+	t.Errorf("Project not found after setting context. Looking for: %s or %s, Projects: %+v", absPath, resolvedPath, projects)
 }
 
 func TestHandleSetContext_NonexistentProject(t *testing.T) {
