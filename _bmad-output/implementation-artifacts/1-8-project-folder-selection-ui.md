@@ -409,3 +409,473 @@ Claude 3.7 Sonnet (claude-sonnet-4-20250514)
 | Date | Change | Reason |
 |------|--------|--------|
 | 2026-01-23 | Initial implementation of Story 1-8 | Complete project selection UI with all acceptance criteria met |
+
+---
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Claude 3.7 Sonnet (Adversarial Review Mode)  
+**Review Date:** 2026-01-23  
+**Story:** 1-8-project-folder-selection-ui  
+**Review Type:** Batch Review (Epic 1 - Stories 1-4 through 1-8)
+
+### Executive Summary
+
+**Recommendation:** ⚠️ **CHANGES REQUESTED**
+
+This is a solid first UI implementation with good test coverage and clean architecture. The core functionality works and integrates properly with backend detection. However, there are several **critical security issues**, **missing keyboard navigation**, **incomplete error handling**, and **type safety problems** that must be addressed before merging.
+
+**Overall Assessment:**
+- ✅ Core functionality implemented correctly
+- ✅ Good test coverage (22 tests passing)
+- ✅ Clean component architecture
+- ⚠️ Security vulnerabilities need immediate attention
+- ⚠️ Accessibility gaps (NFR-U1 not fully met)
+- ⚠️ Missing error handling and edge cases
+- ⚠️ TypeScript compilation errors present
+
+---
+
+### Detailed Findings
+
+#### 🔴 CRITICAL ISSUES (Must Fix)
+
+1. **[SECURITY] Path Traversal Vulnerability - HIGH SEVERITY**
+   - **Location:** `apps/core/internal/project/recent.go` (Line 44-46)
+   - **Issue:** No validation of user-provided paths before adding to recent list
+   - **Risk:** Malicious paths could be stored (e.g., `../../../../etc/passwd`, symbolic links, special characters)
+   - **Impact:** Information disclosure, potential code execution if paths are used unsafely later
+   - **Evidence:**
+     ```go
+     func (rm *RecentManager) Add(path string) error {
+         if path == "" {
+             return fmt.Errorf("path cannot be empty")
+         }
+         // NO VALIDATION - path is directly used
+     ```
+   - **Required Fix:**
+     - Validate path is absolute
+     - Check path exists and is a directory
+     - Resolve symlinks with `filepath.EvalSymlinks()`
+     - Sanitize path with `filepath.Clean()`
+     - Reject paths outside expected directories
+   - **Related AC:** AC #2 (security is implicit in all ACs)
+   - **File:** `apps/core/internal/project/recent.go`
+
+2. **[SECURITY] Stored XSS Vulnerability in Project Context - MEDIUM SEVERITY**
+   - **Location:** `ProjectInfoCard.tsx` (Line 110, 122) & `recent.go` (Line 92-104)
+   - **Issue:** User-provided context text is stored and displayed without sanitization
+   - **Risk:** Malicious script injection if context contains HTML/JavaScript
+   - **Impact:** XSS attacks when context is displayed in UI
+   - **Evidence:**
+     ```tsx
+     <Textarea value={context} onChange={(e) => setContext(e.target.value)} />
+     // Later displayed without escaping in other components
+     ```
+   - **Required Fix:**
+     - Add server-side validation for context length (max 2000 chars)
+     - Strip HTML tags and dangerous characters on backend
+     - Use proper React escaping (already done by React, but validate input)
+     - Add input validation on both client and server
+   - **Related AC:** AC #3 (project context)
+   - **File:** `apps/core/internal/project/recent.go`, `ProjectInfoCard.tsx`
+
+3. **[BUG] Race Condition in Recent Projects - MEDIUM SEVERITY**
+   - **Location:** `recent.go` (Line 150-168)
+   - **Issue:** File I/O in `save()` is not atomic; concurrent saves can corrupt data
+   - **Risk:** Data loss or corruption if multiple UI actions trigger simultaneous saves
+   - **Evidence:**
+     ```go
+     func (rm *RecentManager) save() error {
+         // Three separate syscalls - NOT ATOMIC
+         os.MkdirAll(dir, 0755)
+         json.MarshalIndent(rm.projects, "", "  ")
+         os.WriteFile(rm.configPath, data, 0644)
+     }
+     ```
+   - **Required Fix:**
+     - Write to temporary file first
+     - Use atomic rename (`os.Rename()`)
+     - Add file locking or use atomic file operations
+   - **Related AC:** AC #1, #2 (data persistence)
+   - **File:** `apps/core/internal/project/recent.go`
+
+4. **[BLOCKER] TypeScript Compilation Errors - HIGH SEVERITY**
+   - **Location:** Multiple files
+   - **Issue:** Type checking fails with 30+ errors (test helpers, missing API methods)
+   - **Evidence:**
+     ```
+     error TS2339: Property 'setContext' does not exist on type '{ scan: Mock<...>; ... }'
+     error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'
+     ```
+   - **Impact:** No type safety in production build, potential runtime errors
+   - **Required Fix:**
+     - Add `setContext` to test mock in `ProjectSelectScreen.test.tsx`
+     - Fix test matchers (import `@testing-library/jest-dom`)
+     - Resolve all 30 TypeScript errors
+     - Ensure `npm run typecheck` passes cleanly
+   - **Related AC:** ALL (type safety affects entire implementation)
+   - **File:** Test files, type definitions
+
+---
+
+#### 🟡 HIGH PRIORITY ISSUES (Should Fix)
+
+5. **[ACCESSIBILITY] Missing Keyboard Navigation - NFR-U1 Violation**
+   - **Location:** `ProjectSelectScreen.tsx`, `RecentProjectItem.tsx`
+   - **Issue:** No keyboard support beyond basic tab navigation
+   - **Missing:**
+     - Enter key on recent projects to open (currently requires click)
+     - Escape key to cancel folder picker
+     - Arrow keys to navigate recent list
+     - Focus management after selection
+   - **Evidence:** No `onKeyDown` handlers found in ProjectSelectScreen.tsx
+   - **Required Fix:**
+     ```tsx
+     // RecentProjectItem - add keyboard support
+     <button onKeyDown={(e) => {
+       if (e.key === 'Enter' || e.key === ' ') {
+         e.preventDefault();
+         onSelect();
+       }
+     }}>
+     ```
+   - **Related AC:** AC #1 (NFR-U1 requirement)
+   - **File:** `ProjectSelectScreen.tsx`, `RecentProjectItem.tsx`
+
+6. **[UX] Poor Error Handling and User Feedback**
+   - **Location:** `ProjectSelectScreen.tsx` (Line 38-42, 61-65, 79-83)
+   - **Issue:** Errors are only logged to console, no user-visible feedback
+   - **Missing:**
+     - Toast/alert when recent projects fail to load
+     - Error state when folder scan fails
+     - Loading states during async operations
+     - Retry mechanism for failed operations
+   - **Evidence:**
+     ```tsx
+     catch (error) {
+       console.error('Failed to load recent projects:', error)
+       setRecentProjects([])  // Silent failure
+     }
+     ```
+   - **Required Fix:**
+     - Add error state to component
+     - Display user-friendly error messages
+     - Add retry button for failed operations
+     - Show loading spinner during scans
+   - **Related AC:** AC #1, #2 (user experience)
+   - **File:** `ProjectSelectScreen.tsx`
+
+7. **[BUG] Missing Project Context Initialization**
+   - **Location:** `ProjectInfoCard.tsx` (Line 25)
+   - **Issue:** Context textarea doesn't load existing context from project
+   - **Expected:** When opening a brownfield project from recent list, existing context should pre-populate
+   - **Evidence:**
+     ```tsx
+     const [context, setContext] = useState('')  // Always starts empty
+     // Should be: useState(project.context || '')
+     ```
+   - **Required Fix:**
+     - Initialize from `project.context` if available
+     - Add useEffect to update when project changes
+     - Pass context through recent projects data
+   - **Related AC:** AC #3 (context persistence)
+   - **File:** `ProjectInfoCard.tsx`
+
+8. **[INTEGRATION] Missing Integration with Project Detection**
+   - **Location:** Story dependencies
+   - **Issue:** No verification that Story 1-7 detection features actually work end-to-end
+   - **Missing Tests:**
+     - E2E test scanning actual BMAD project folder
+     - Integration test with real detector.go output
+     - Test with actual brownfield artifacts
+   - **Evidence:** All tests use mocks; no integration tests found
+   - **Required Fix:**
+     - Add integration test that:
+       - Creates temp BMAD project
+       - Scans it via UI
+       - Verifies detection results match
+     - Test with Stories 1-4, 1-5, 1-6, 1-7 features
+   - **Related AC:** AC #2 (project detection integration)
+   - **File:** Test suite
+
+---
+
+#### 🟢 MEDIUM PRIORITY ISSUES (Recommended)
+
+9. **[PERFORMANCE] Inefficient Recent Projects Reload**
+   - **Location:** `ProjectSelectScreen.tsx` (Line 35-43, 57-59, 77-78, 123-125)
+   - **Issue:** Reloads entire recent list after every action (4x duplicate code)
+   - **Impact:** Unnecessary file I/O and re-renders
+   - **Suggested Fix:**
+     - Optimistic UI updates
+     - Cache recent projects in memory
+     - Only reload on mount and after add/remove
+   - **Related AC:** AC #1 (performance)
+   - **File:** `ProjectSelectScreen.tsx`
+
+10. **[CODE QUALITY] Semantic Versioning Comparison is Naive**
+    - **Location:** `detector.go` (Line 106-112)
+    - **Issue:** String comparison for versions fails on edge cases
+    - **Failing Cases:**
+      - "6.10.0" < "6.9.0" (lexicographic comparison)
+      - Pre-release versions (6.0.0-beta)
+      - Build metadata (6.0.0+build123)
+    - **Evidence:**
+      ```go
+      func isVersionCompatible(version, minVersion string) bool {
+          return version >= minVersion  // String comparison
+      }
+      ```
+    - **Suggested Fix:**
+      - Use `github.com/hashicorp/go-version` library
+      - Implement proper semver parsing
+    - **Related AC:** AC #2 (version compatibility)
+    - **File:** `apps/core/internal/project/detector.go`
+
+11. **[UX] "Continue to Dashboard" Button Does Nothing**
+    - **Location:** `ProjectInfoCard.tsx` (Line 128-130)
+    - **Issue:** Button has no onClick handler - dead code
+    - **Evidence:**
+      ```tsx
+      <Button className="w-full mt-4">
+        Continue to Dashboard
+      </Button>  // No onClick prop
+      ```
+    - **Suggested Fix:**
+      - Add navigation to dashboard
+      - Or remove button if not part of this story
+      - Document in story if intentionally left for future work
+    - **Related AC:** AC #2 (next steps after selection)
+    - **File:** `ProjectInfoCard.tsx`
+
+12. **[CODE QUALITY] Missing Validation for maxRecent Setting**
+    - **Location:** `manager.go` (Line 24)
+    - **Issue:** Hard-coded to 10, but should respect user settings
+    - **Expected:** Use `settings.recentProjectsMax` from Story 1-2
+    - **Evidence:**
+      ```go
+      recentManager = NewRecentManager(configPath, 10) // Hard-coded
+      ```
+    - **Suggested Fix:**
+      - Load from settings module
+      - Add bounds checking (min 1, max 50)
+    - **Related AC:** Integration with Story 1-2
+    - **File:** `apps/core/internal/project/manager.go`
+
+---
+
+#### 🔵 LOW PRIORITY ISSUES (Nice to Have)
+
+13. **[TESTING] React Test Warnings (act() Violations)**
+    - **Location:** Test output
+    - **Issue:** State updates not wrapped in act()
+    - **Evidence:** 3 warnings in test output for ProjectSelectScreen
+    - **Suggested Fix:**
+      - Wrap async operations in `waitFor()`
+      - Use `act()` for state updates
+    - **Related AC:** Testing quality
+    - **File:** `ProjectSelectScreen.test.tsx`
+
+14. **[UX] No Empty State for Non-BMAD Projects**
+    - **Location:** `ProjectInfoCard.tsx` (Line 40-54)
+    - **Issue:** Could offer to run bmad-init directly
+    - **Suggested Enhancement:**
+      - Add "Initialize BMAD" button
+      - Link to documentation
+      - Show helpful onboarding message
+    - **Related AC:** AC #1 (user experience)
+    - **File:** `ProjectInfoCard.tsx`
+
+15. **[CODE QUALITY] Inconsistent Error Handling**
+    - **Location:** Multiple handlers in `project_handlers.go`
+    - **Issue:** Some errors return generic messages, others expose internals
+    - **Suggested Fix:**
+      - Standardize error response format
+      - Never expose internal paths in errors
+      - Add error codes for different failure types
+    - **Related AC:** Error handling consistency
+    - **File:** `apps/core/internal/server/project_handlers.go`
+
+16. **[TESTING] Missing Edge Case Tests**
+    - **Missing Tests:**
+      - Project path with spaces, unicode, special chars
+      - Network path or UNC path (Windows)
+      - Very long project names (>255 chars)
+      - Concurrent operations (add + remove simultaneously)
+      - File system permissions errors
+    - **Suggested Fix:** Add comprehensive edge case test suite
+    - **Related AC:** AC #1, #2 (robustness)
+    - **File:** Test suites
+
+---
+
+### Test Coverage Analysis
+
+**Claim:** 22 tests total (10 React + 8 Go unit + 4 Go integration)
+
+**Verification:**
+- ✅ React tests: 10 tests **PASSING** (but with act() warnings)
+- ✅ Go unit tests: 8 tests **PASSING** (`TestRecentManager_*`)
+- ✅ Go integration tests: 4 tests **PASSING** (`TestHandle*Recent`)
+- ❌ TypeScript compilation: **FAILING** (30+ errors)
+- ❌ E2E tests: **MISSING** (no end-to-end verification)
+
+**Coverage Gaps:**
+1. No integration test with actual detector.go
+2. No test for brownfield project with existing context
+3. No test for keyboard navigation
+4. No test for error states/retry logic
+5. No test for path validation edge cases
+
+**Verdict:** Test count is accurate but **coverage is insufficient** for production readiness.
+
+---
+
+### Acceptance Criteria Verification
+
+**AC #1: Project selection screen with folder picker and recent projects**
+- ✅ Project selection screen renders
+- ✅ "Select Project Folder" button opens native dialog
+- ✅ Recent projects list displays correctly
+- ⚠️ **PARTIAL FAIL:** Keyboard navigation missing (NFR-U1 requirement)
+- ⚠️ **PARTIAL FAIL:** Error handling inadequate
+
+**AC #2: Valid BMAD project detection and results display**
+- ✅ Detection runs automatically after selection
+- ✅ Results displayed (version, type, dependencies)
+- ✅ Project saved to recent list
+- ⚠️ **PARTIAL FAIL:** No integration test with real detector
+- ⚠️ **CONCERN:** Semantic version comparison is naive
+
+**AC #3: Brownfield project context editor**
+- ✅ Text area shows for brownfield projects only
+- ✅ Context can be saved
+- ❌ **FAIL:** Existing context not loaded on mount
+- ⚠️ **SECURITY:** No input validation/sanitization
+
+**Overall:** **60% Complete** - Core functionality works but critical gaps remain.
+
+---
+
+### Security Assessment
+
+**Security Issues Found:** 2 Critical, 0 High
+
+1. **Path Traversal** (Critical) - No input validation
+2. **Stored XSS** (Medium) - Context text unsanitized
+
+**IPC Boundary Security:**
+- ✅ contextBridge properly isolates renderer
+- ✅ No direct Node.js access in renderer
+- ❌ Backend doesn't validate paths from renderer
+
+**File System Security:**
+- ❌ No path sanitization
+- ❌ No symlink protection
+- ⚠️ File permissions (0644) are reasonable but should be documented
+
+**Recommendation:** **DO NOT MERGE** until path validation is implemented.
+
+---
+
+### Performance Evaluation
+
+**Positive:**
+- Efficient concurrent-safe recent manager with RWMutex
+- Minimal re-renders (good use of state)
+- Lazy loading of recent projects
+
+**Concerns:**
+- 4x duplicate `loadRecentProjects()` calls (see Issue #9)
+- Full file I/O on every recent project operation
+- No caching of scan results
+
+**Overall:** Performance is acceptable but could be optimized.
+
+---
+
+### Architecture & Code Quality
+
+**Strengths:**
+- ✅ Clean separation of concerns (UI / IPC / Backend)
+- ✅ Proper use of JSON-RPC for IPC
+- ✅ Type-safe API boundary with TypeScript
+- ✅ Good component composition (ProjectInfoCard, RecentProjectItem)
+- ✅ Follows shadcn/ui patterns consistently
+
+**Weaknesses:**
+- ⚠️ TypeScript errors indicate rushed implementation
+- ⚠️ Inconsistent error handling patterns
+- ⚠️ Missing validation layer
+- ⚠️ Hard-coded values (maxRecent)
+
+**Technical Debt:**
+- Continue button is dead code
+- Test warnings need cleanup
+- Version comparison needs proper implementation
+
+---
+
+### Action Items Summary
+
+**MUST FIX (Blocking):**
+- [ ] **Critical:** Add path validation and sanitization (Issue #1)
+- [ ] **Critical:** Fix all TypeScript compilation errors (Issue #4)
+- [ ] **High:** Implement keyboard navigation (Issue #5)
+- [ ] **High:** Add proper error handling with user feedback (Issue #6)
+- [ ] **High:** Fix context initialization from existing data (Issue #7)
+- [ ] **Medium:** Sanitize project context input (Issue #2)
+- [ ] **Medium:** Add atomic file save operations (Issue #3)
+
+**SHOULD FIX (Recommended):**
+- [ ] **Medium:** Add integration tests with real detector (Issue #8)
+- [ ] **Medium:** Fix semantic version comparison (Issue #10)
+- [ ] **Low:** Wire up Continue button or remove it (Issue #11)
+- [ ] **Low:** Respect maxRecent from settings (Issue #12)
+
+**NICE TO HAVE:**
+- [ ] Fix React act() warnings (Issue #13)
+- [ ] Add bmad-init shortcut for non-BMAD projects (Issue #14)
+- [ ] Standardize error responses (Issue #15)
+- [ ] Add comprehensive edge case tests (Issue #16)
+
+**Total Action Items:** 7 Must Fix | 4 Should Fix | 4 Nice to Have
+
+---
+
+### Final Recommendation
+
+**Status:** ⚠️ **CHANGES REQUESTED**
+
+This implementation demonstrates good architectural design and adequate test coverage for happy paths. However, **critical security vulnerabilities** (path traversal, XSS) and **missing accessibility features** (keyboard navigation) make it **not production-ready**.
+
+**Before Merging:**
+1. Fix all 7 MUST FIX items (especially security issues)
+2. Resolve TypeScript compilation errors
+3. Add integration test with real project detection
+4. Verify keyboard navigation works end-to-end
+
+**Estimated Effort:** 4-6 hours for critical fixes + 2-3 hours for recommended items
+
+**Positive Notes:**
+- Solid foundation with good architecture
+- Clean code structure and component design
+- Backend implementation is well-tested and thread-safe
+- Integration with Electron IPC is secure and follows best practices
+
+**Blocking Concerns:**
+- Path validation is a **security vulnerability** that could lead to information disclosure
+- TypeScript errors indicate code wasn't fully validated before review
+- Keyboard navigation is a **documented requirement (NFR-U1)** that wasn't met
+
+**Next Steps:**
+1. Address all MUST FIX items in a follow-up commit
+2. Re-run full test suite including type checking
+3. Manual testing of keyboard navigation
+4. Security review of path handling
+5. Request re-review after fixes
+
+---
+
+**Review Complete.** This story shows strong fundamentals but needs critical refinements before production deployment.

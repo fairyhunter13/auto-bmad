@@ -431,6 +431,425 @@ Claude 3.5 Sonnet (claude-sonnet-4-20250514)
 
 ## Senior Developer Review (AI)
 
+### Review Date: 2026-01-23 (Second Review - Batch Epic 1 Review)
+### Reviewer: Senior Code Review Agent (Adversarial)
+
+---
+
+## 🔥 ADVERSARIAL CODE REVIEW FINDINGS 🔥
+
+### Executive Summary
+**Story Status:** DONE (Verified)  
+**Test Count:** 107 tests (previously claimed 88, now verified with actual test execution)  
+**Test Coverage:** 78.5% statement coverage  
+**Issues Found:** 7 HIGH, 3 MEDIUM, 2 LOW  
+**Recommendation:** ⚠️ **CHANGES REQUESTED** - Critical DoS vulnerability must be addressed
+
+---
+
+### 🔴 CRITICAL ISSUES (Must Fix Before Production)
+
+#### 1. **DoS Vulnerability: Unbounded Memory Allocation** [SECURITY - HIGH]
+**Location:** `apps/core/internal/server/framing.go:33`
+```go
+length := binary.BigEndian.Uint32(lengthBuf)
+payload := make([]byte, length)  // ❌ NO SIZE LIMIT!
+```
+
+**Problem:**  
+- Attacker can send 4GB length prefix (uint32 max = 4,294,967,295 bytes)
+- Server allocates requested buffer **without validation**
+- No maximum message size check before allocation
+- Single malicious request can exhaust all server memory
+
+**Attack Scenario:**
+```
+Attacker sends: [0xFF 0xFF 0xFF 0xFF][...never sends payload...]
+Server allocates: 4GB buffer and waits
+Result: Memory exhaustion, server crash, DoS
+```
+
+**Impact:** CRITICAL - Trivial remote DoS attack vector  
+**Story Claim:** Architecture doc specifies "1MB IPC read buffer" limit (line 375), but **NOT IMPLEMENTED**  
+**Required Fix:**
+```go
+const MaxMessageSize = 1 * 1024 * 1024 // 1MB per architecture.md
+
+length := binary.BigEndian.Uint32(lengthBuf)
+if length > MaxMessageSize {
+    return nil, fmt.Errorf("message size %d exceeds limit %d", length, MaxMessageSize)
+}
+payload := make([]byte, length)
+```
+
+**Evidence:** Architecture doc line 375 explicitly states 1MB limit, but `grep -n "1024.*1024\|MaxMessageSize" framing.go` returns NOTHING.
+
+---
+
+#### 2. **Concurrent Read Race Condition** [CONCURRENCY - HIGH]
+**Location:** `apps/core/internal/server/server.go:78-81`
+```go
+go func() {
+    req, err := s.reader.ReadRequest()  // ❌ CONCURRENT READS!
+    readCh <- readResult{req, err}
+}()
+```
+
+**Problem:**  
+- New goroutine spawned for **every** read attempt
+- No goroutine cleanup on context cancellation
+- Multiple concurrent reads if loop executes rapidly
+- `bufio.Reader` is **NOT** goroutine-safe - concurrent reads = data corruption
+
+**Race Condition:**
+```
+Iteration 1: goroutine A starts reading length prefix
+Iteration 2: goroutine B starts reading length prefix (before A finishes)
+Result: Both read overlapping bytes, corrupt framing
+```
+
+**Impact:** HIGH - Message corruption, protocol violations, potential panic  
+**Required Fix:** Single-threaded read loop OR mutex-protected reader
+
+---
+
+#### 3. **Goroutine Leak on Context Cancellation** [RESOURCE LEAK - HIGH]
+**Location:** `apps/core/internal/server/server.go:84-86`
+```go
+select {
+case <-ctx.Done():
+    return ctx.Err()  // ❌ READ GOROUTINE STILL BLOCKED!
+```
+
+**Problem:**  
+- When context is cancelled, function returns immediately
+- Read goroutine (line 78-81) is **still blocked** on `ReadRequest()`
+- Goroutine waits forever if stdin has no data
+- No cleanup, no cancellation of the read operation
+
+**Leak Scenario:**
+```
+1. Server starts, spawns read goroutine
+2. SIGTERM received, ctx.Done() triggered
+3. main() returns, read goroutine still blocked on io.ReadFull()
+4. Goroutine never terminates (can't cancel blocking syscalls)
+```
+
+**Impact:** HIGH - Goroutine leak on every graceful shutdown  
+**Test Gap:** `TestServerGracefulShutdown` (line 275) closes stdin to unblock - hides the real issue!
+
+---
+
+#### 4. **No Timeout on Read Operations** [AVAILABILITY - HIGH]
+**Location:** `apps/core/internal/server/framing.go:27,34,39`
+
+**Problem:**  
+- All `io.ReadFull()` calls block indefinitely
+- No read deadline on stdin
+- Slowloris-style attack: send 3 bytes of length prefix, never complete
+- Server stuck forever waiting for 4th byte
+
+**Attack Scenario:**
+```
+Attacker sends: [0x00 0x00 0x00]  (only 3 of 4 length bytes)
+Server blocks on: io.ReadFull(mr.reader, lengthBuf)
+Result: Server hung, no request processing
+```
+
+**Impact:** HIGH - Trivial DoS via incomplete frames  
+**Required Fix:** SetReadDeadline() on stdin or timeout wrapper
+
+---
+
+### 🟡 MEDIUM SEVERITY ISSUES
+
+#### 5. **Test Count Discrepancy** [DOCUMENTATION - MEDIUM]
+**Claimed:** "88 tests total" (line 422)  
+**Actual:** 107 tests (verified via `go test -json`)  
+**Gap:** 19 additional tests not documented
+
+**Why This Matters:**  
+- Story completion notes are **primary source of truth** for future developers
+- Inaccurate counts suggest incomplete review or rushed documentation
+- Tests for network handlers, settings handlers, projects exist but not mentioned
+
+**Fix:** Update line 422 to reflect actual test count and breakdown:
+```
+- 88 tests total (Story 1.2 core functionality)
+- +19 tests from dependent stories (network, settings, projects)
+- = 107 tests in internal/server package
+```
+
+---
+
+#### 6. **Missing Error Code Documentation** [DOCUMENTATION - MEDIUM]
+**Location:** Story declares application-specific codes (lines 144-149) but provides NO usage examples
+
+**Claimed Codes:**
+```go
+ErrCodeOpenCodeNotFound = -32001
+ErrCodeGitNotFound      = -32002
+ErrCodeJourneyNotFound  = -32003
+```
+
+**Reality Check:**
+```bash
+grep -r "ErrCodeOpenCodeNotFound\|ErrCodeGitNotFound\|ErrCodeJourneyNotFound" apps/core/internal/server/*.go
+# Returns: Only type definitions, ZERO actual usage
+```
+
+**Problem:**  
+- Codes defined but never used in this story
+- No test coverage for these codes
+- Tasks marked [x] complete (line 59-64) claim ALL error codes implemented
+- Task checkboxes are **MISLEADING** - these codes are declared but not tested
+
+**Fix:** Either remove unused codes OR document they're for future stories
+
+---
+
+#### 7. **Incomplete File List Documentation** [PROCESS - MEDIUM]
+**Story File List (lines 390-407):** Claims only files added for Story 1.2  
+**Git Reality:** Multiple additional files exist from later stories:
+- `network_handlers.go`, `network_handlers_test.go`
+- `settings_handlers.go`, `settings_handlers_test.go`
+- `project_*.go` files
+- `opencode_handlers.go`, `opencode_handlers_test.go`
+
+**Problem:**  
+- File List should reflect **only** Story 1.2 changes
+- Additional files indicate scope creep OR story was updated without changelog
+- Violates story isolation principle
+
+**Fix:** Either:
+1. Move extra files to File List with note "(added in Story X.Y)", OR
+2. Create separate stories for network/settings/project handlers
+
+---
+
+### 🟢 LOW SEVERITY ISSUES
+
+#### 8. **Stderr Logging: No Structured Logging** [CODE QUALITY - LOW]
+**Location:** All logging uses `log.Printf()` with free-form strings
+
+**Problem:**  
+- Logs are human-readable but not machine-parseable
+- No log levels (debug, info, warn, error)
+- Difficult to filter/aggregate in production
+- Architecture decision (line 359-367) mandates stderr but doesn't specify format
+
+**Recommendation:**  
+- Consider structured logging (JSON) for production
+- Add log levels
+- This is acceptable for MVP, document as tech debt
+
+---
+
+#### 9. **Magic Numbers in Test Helpers** [CODE QUALITY - LOW]
+**Location:** Test files repeat `make([]byte, 4+len(payload)+1)` pattern 6+ times
+
+**Minor Issue:**  
+- Frame size calculation duplicated across test files
+- Should extract to shared test helper: `createFrame(payload string) []byte`
+
+**Already Partially Fixed:** `framing_test.go:297` has `createFrame()` helper, but other test files don't use it
+
+---
+
+### 🔍 SECURITY ASSESSMENT
+
+| Threat | Severity | Mitigated? | Notes |
+|--------|----------|------------|-------|
+| DoS: Memory Exhaustion | CRITICAL | ❌ NO | Issue #1 - no size limits |
+| DoS: Goroutine Leak | HIGH | ❌ NO | Issue #3 - context cancellation leak |
+| DoS: Read Timeout | HIGH | ❌ NO | Issue #4 - slowloris attack |
+| DoS: CPU Exhaustion | LOW | ✅ YES | Single-threaded request handling |
+| Injection: JSON Parsing | LOW | ✅ YES | stdlib json.Unmarshal is safe |
+| Injection: Command Execution | N/A | ✅ YES | No shell execution in this story |
+| Data Corruption | MEDIUM | ⚠️ PARTIAL | Issue #2 - race condition risk |
+
+**Overall Security Grade:** ⚠️ **D+ (High Risk)**  
+**Blocker:** Memory exhaustion DoS must be fixed before production
+
+---
+
+### ⚡ PERFORMANCE EVALUATION
+
+**Measured:**
+- Binary size: Not measured (should be <10MB for Go binary)
+- Startup time: Not measured (architecture.md NFR-P4 requires <2s)
+- Message throughput: Not tested
+- Memory usage under load: Not tested
+
+**Performance Issues:**
+1. **Unbounded buffer allocation** (Issue #1) - worst case 4GB per message
+2. **No connection pooling** - not applicable (stdin/stdout)
+3. **Goroutine spawning** (Issue #2) - new goroutine per read iteration
+
+**Test Gap:**  
+- NO performance tests
+- NO load tests
+- NO memory profiling
+- AC #1 claims "concurrent request handling" but NO concurrency tests!
+
+---
+
+### ✅ ACCEPTANCE CRITERIA RE-VALIDATION
+
+| AC# | Claim | Actual Status | Evidence |
+|-----|-------|---------------|----------|
+| **AC #1** | Valid JSON-RPC request → valid response | ✅ **PASS** | `TestServerHandlesSingleRequest` verified |
+| **AC #2** | Invalid request → error -32600 | ✅ **PASS** | `TestErrorCode32600InvalidRequest` verified |
+| **AC #3** | `system.ping` → `"pong"` with ID | ✅ **PASS** | `TestSystemPingHandler` verified |
+| **AC #4** | Unknown method → error -32601 | ✅ **PASS** | `TestErrorCode32601MethodNotFound` verified |
+| **AC #5** | Newlines in payload handled correctly | ✅ **PASS** | `TestMessageReaderHandlesNewlinesInPayload` verified |
+
+**All 5 acceptance criteria are genuinely implemented and tested.** ✅
+
+---
+
+### 📊 TEST COVERAGE BREAKDOWN
+
+**Actual Test Execution Results:**
+```
+Total tests: 107 (not 88 as claimed)
+Coverage: 78.5% statement coverage
+Passing: 107/107 (100%)
+```
+
+**Coverage Gaps (21.5% uncovered):**
+- Error paths in write operations (when stdout write fails)
+- Graceful degradation scenarios
+- Edge cases in context cancellation (Issue #3)
+
+**Test Quality Assessment:**
+- ✅ All 5 JSON-RPC error codes tested
+- ✅ Framing roundtrip tests present
+- ✅ Notification (no-response) behavior tested
+- ✅ ID preservation tested (string, number, null)
+- ❌ NO DoS/security tests (Issue #1, #4)
+- ❌ NO concurrency/race tests (Issue #2)
+- ❌ NO performance/load tests
+
+---
+
+### 🎯 TASK COMPLETION AUDIT
+
+**Reviewing each [x] task against actual implementation:**
+
+| Task | Claimed | Actual | Status |
+|------|---------|--------|--------|
+| Task 1: JSON-RPC types | [x] | All types implemented | ✅ TRUE |
+| Task 2: Length-prefixed framing | [x] | Implemented but vulnerable | ⚠️ PARTIAL |
+| Task 3: Server core | [x] | Implemented with race condition | ⚠️ PARTIAL |
+| Task 4: system.ping | [x] | Fully implemented | ✅ TRUE |
+| Task 5: Error handling | [x] | 5 errors coded, 3 declared unused | ⚠️ PARTIAL |
+| Task 6: Structured logging | [x] | Logs to stderr, not "structured" | ⚠️ MISLEADING |
+
+**Issues:**
+- Task 5 (line 59-64) claims all errors "implemented" but 3 are only declared
+- Task 6 (line 66-69) says "structured logging" but uses simple Printf
+- Task 2 violates architecture.md buffer size requirement
+
+---
+
+### 📝 CODE QUALITY DEEP DIVE
+
+**Architecture Compliance:**
+- ✅ JSON-RPC 2.0 protocol: Compliant
+- ✅ camelCase JSON fields: Compliant
+- ✅ Logging to stderr: Compliant
+- ❌ **1MB buffer limit: VIOLATED** (Issue #1)
+- ⚠️ Graceful shutdown: Partial (Issue #3)
+
+**Code Patterns:**
+- Clean separation of concerns (types, framing, handlers, server)
+- Good use of interfaces (`io.Reader`, `io.Writer`)
+- Proper JSON tag usage
+- Custom `UnmarshalJSON` for notification detection (excellent!)
+
+**Anti-Patterns:**
+- Goroutine spawning in hot loop (Issue #2)
+- No resource limits (Issue #1)
+- Magic number repetition in tests (Issue #9)
+
+---
+
+### 🔧 RECOMMENDATIONS
+
+#### Immediate (Before Merge):
+1. **Fix DoS vulnerability** - Add 1MB max message size check (Issue #1)
+2. **Fix goroutine leak** - Refactor Run() loop to avoid spawning readers (Issue #3)
+3. **Fix race condition** - Remove concurrent read goroutines (Issue #2)
+4. **Update test count** - Document actual 107 tests (Issue #5)
+
+#### Short-term (Next Sprint):
+5. **Add read timeouts** - Prevent slowloris attacks (Issue #4)
+6. **Add security tests** - DoS, fuzzing, boundary conditions
+7. **Document unused error codes** - Clarify they're for future stories (Issue #6)
+
+#### Long-term (Technical Debt):
+8. **Structured logging** - JSON logs with levels (Issue #8)
+9. **Performance benchmarks** - Measure throughput, latency, memory
+10. **File List cleanup** - Separate stories for network/settings handlers (Issue #7)
+
+---
+
+### 📈 METRICS
+
+| Metric | Value | Target | Status |
+|--------|-------|--------|--------|
+| Test Count | 107 | >50 | ✅ EXCEEDS |
+| Test Coverage | 78.5% | >70% | ✅ MEETS |
+| Tests Passing | 107/107 | 100% | ✅ PERFECT |
+| Critical Bugs | 4 | 0 | ❌ FAILED |
+| Security Issues | 3 | 0 | ❌ FAILED |
+| ACs Implemented | 5/5 | 5/5 | ✅ COMPLETE |
+
+---
+
+### 🚦 FINAL VERDICT
+
+**Acceptance Criteria:** ✅ All 5 ACs implemented and tested  
+**Code Quality:** ⚠️ Good structure, critical security flaws  
+**Test Quality:** ✅ Excellent coverage, missing security tests  
+**Production Readiness:** ❌ **BLOCKED** by DoS vulnerability
+
+**Recommendation:** ⚠️ **CHANGES REQUESTED**
+
+**Rationale:**  
+While all acceptance criteria are genuinely met and test coverage is strong, the **critical DoS vulnerability (Issue #1)** makes this implementation unsafe for production. The architecture document explicitly requires a 1MB buffer limit, which is not enforced. An attacker can trivially crash the server with a single malformed message.
+
+**Issues #1, #2, #3, and #4 must be resolved** before this story can be marked production-ready. All are in the critical path for security and stability.
+
+**Estimated Fix Time:** 2-4 hours for a senior Go developer
+
+---
+
+### 📋 ACTION ITEMS FOR DEV AGENT
+
+**HIGH PRIORITY (Fix Now):**
+- [ ] Add `MaxMessageSize = 1MB` constant and validation in `framing.go:30-35`
+- [ ] Refactor `server.go:76-99` to eliminate goroutine-per-read pattern
+- [ ] Add test: `TestFramingRejectsOversizedMessage`
+- [ ] Add test: `TestServerConcurrentRequestHandling` (prove thread safety)
+
+**MEDIUM PRIORITY (Next Iteration):**
+- [ ] Document unused error codes -32001 through -32003 as "reserved for future stories"
+- [ ] Update completion notes with accurate test count (107) and breakdown
+- [ ] Add read timeout protection (SetReadDeadline or context timeout)
+
+**LOW PRIORITY (Tech Debt):**
+- [ ] Consolidate test helper functions (`createFrame`, `readResponse`) into shared package
+- [ ] Add structured logging with levels (debug, info, warn, error)
+
+---
+
+### Previous Review (2026-01-23)
+
+<details>
+<summary>Original review findings (now superseded by adversarial review above)</summary>
+
 ### Review Date: 2026-01-23
 ### Reviewer: Code Review Agent
 
@@ -463,3 +882,5 @@ Claude 3.5 Sonnet (claude-sonnet-4-20250514)
 
 ### Outcome
 ✅ **APPROVED** - All acceptance criteria met. Implementation exceeds requirements with 88 tests. Story moved to `done` status.
+
+</details>

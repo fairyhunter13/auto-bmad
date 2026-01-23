@@ -380,6 +380,504 @@ Claude 3.7 Sonnet (via Claude Code CLI)
 |------|--------|--------|
 | 2026-01-23 | Implemented story 1-7-detect-bmad-project-structure | Complete BMAD project detection with greenfield/brownfield classification |
 
+## Senior Developer Review (AI)
+
+**Reviewer:** Claude Code (Senior Developer Agent)  
+**Review Date:** 2026-01-23  
+**Story:** 1-7-detect-bmad-project-structure  
+**Review Type:** Batch Review (Epic 1)
+
+### Overall Assessment
+
+**Recommendation:** **CHANGES REQUESTED** ⚠️
+
+The implementation demonstrates solid architectural design with comprehensive test coverage (18 tests, all passing). However, **one critical bug** and several medium-severity issues require immediate attention before approval.
+
+**Strengths:**
+- ✅ Excellent test coverage (15 unit tests + 3 handler tests)
+- ✅ Clean separation of concerns (detector, handlers, types)
+- ✅ Proper use of Go idioms and error handling
+- ✅ Type-safe TypeScript integration
+- ✅ All acceptance criteria functionally satisfied
+
+**Critical Issues:** 1 (MUST FIX)  
+**High Priority:** 0  
+**Medium Priority:** 4  
+**Low Priority:** 3
+
+---
+
+### Critical Issues (BLOCKING)
+
+#### 🔴 **CRITICAL-1: Semantic Version Comparison Bug**
+**Severity:** CRITICAL  
+**Category:** Logic Error  
+**File:** `apps/core/internal/project/detector.go:106-112`
+
+**Issue:**  
+The `isVersionCompatible()` function uses naive string comparison (`version >= minVersion`) which **fails for double-digit major versions**:
+
+```go
+// CURRENT (BROKEN):
+func isVersionCompatible(version, minVersion string) bool {
+    return version >= minVersion  // "10.0.0" < "6.0.0" (lexicographic!)
+}
+```
+
+**Evidence:**
+```
+✗ FAIL: "10.0.0" >= "6.0.0" returns FALSE (expected TRUE)
+```
+
+**Impact:**  
+- BMAD version 10.0.0+ would be incorrectly rejected as incompatible
+- Breaks future-proofing for BMAD versions ≥10.x
+- Silent failure - no error, just wrong `bmadCompatible` flag
+
+**Recommendation:**  
+Implement proper semantic version comparison:
+
+```go
+import "github.com/hashicorp/go-version"
+
+func isVersionCompatible(versionStr, minVersionStr string) bool {
+    version, err := version.NewVersion(versionStr)
+    if err != nil {
+        return false
+    }
+    minVersion, err := version.NewVersion(minVersionStr)
+    if err != nil {
+        return false
+    }
+    return version.GreaterThanOrEqual(minVersion)
+}
+```
+
+**Alternative (no dependency):**  
+Parse and compare `[major, minor, patch]` as integers.
+
+**Related AC:** #1 (version compatibility verification)
+
+---
+
+### High Priority Issues
+
+*(None identified)*
+
+---
+
+### Medium Priority Issues
+
+#### 🟡 **MEDIUM-1: Path Traversal Vulnerability Risk**
+**Severity:** MEDIUM  
+**Category:** Security  
+**File:** `apps/core/internal/project/detector.go:42-50`
+
+**Issue:**  
+The `Scan()` function accepts arbitrary `projectPath` without validation. While `filepath.Join()` does clean paths, there's no validation that the path:
+1. Actually exists as a directory
+2. Is accessible to the user
+3. Isn't a sensitive system path
+
+**Evidence:**
+```go
+func Scan(projectPath string) (*ProjectScanResult, error) {
+    // No validation of projectPath before using it
+    bmadPath := filepath.Join(projectPath, "_bmad")
+```
+
+**Impact:**  
+- User could scan `/etc`, `/root`, or other sensitive directories
+- No protection against symbolic link attacks
+- Could leak information about system structure
+
+**Recommendation:**
+```go
+func Scan(projectPath string) (*ProjectScanResult, error) {
+    // Validate path is a directory
+    info, err := os.Stat(projectPath)
+    if err != nil {
+        return nil, fmt.Errorf("invalid project path: %w", err)
+    }
+    if !info.IsDir() {
+        return nil, fmt.Errorf("project path is not a directory: %s", projectPath)
+    }
+    
+    // Resolve symlinks to prevent attacks
+    resolvedPath, err := filepath.EvalSymlinks(projectPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to resolve path: %w", err)
+    }
+    
+    // Continue with validation...
+}
+```
+
+**Related AC:** All (input validation)
+
+---
+
+#### 🟡 **MEDIUM-2: Missing File Modification Timestamps**
+**Severity:** MEDIUM  
+**Category:** Incomplete Feature  
+**File:** `apps/core/internal/project/detector.go:115-134`
+
+**Issue:**  
+The `Artifact` struct has a `Modified` field (line 23), and the story mentions "Modified" in the artifact table (line 93), but `scanArtifacts()` **never populates this field**.
+
+**Evidence:**
+```go
+// Line 124-128: Modified field is left empty
+artifacts = append(artifacts, Artifact{
+    Name: entry.Name(),
+    Path: filepath.Join("planning-artifacts", entry.Name()),
+    Type: artifactType,
+    // Modified: ???  <-- MISSING
+})
+```
+
+**Impact:**  
+- Brownfield projects can't show "last modified" timestamps
+- Users can't identify recently updated artifacts
+- UI can't sort by modification date
+
+**Recommendation:**
+```go
+info, err := entry.Info()
+if err == nil {
+    artifacts = append(artifacts, Artifact{
+        Name:     entry.Name(),
+        Path:     filepath.Join("planning-artifacts", entry.Name()),
+        Type:     artifactType,
+        Modified: info.ModTime().Format(time.RFC3339),
+    })
+}
+```
+
+**Related AC:** #3 (existing artifacts are listed for context)
+
+---
+
+#### 🟡 **MEDIUM-3: Incomplete Artifact Scanning**
+**Severity:** MEDIUM  
+**Category:** Missing Feature  
+**File:** `apps/core/internal/project/detector.go:115-134`
+
+**Issue:**  
+The function **only scans `planning-artifacts/`** folder but ignores:
+- `implementation-artifacts/` (stories, tasks)
+- Other potential artifact folders
+
+**Evidence:**
+```go
+// Line 119: Only scans one folder
+planningPath := filepath.Join(outputPath, "planning-artifacts")
+```
+
+**Impact:**  
+- Brownfield projects with stories/implementation artifacts show as "greenfield"
+- Misleading project type classification
+- Users lose context about implementation progress
+
+**Recommendation:**  
+Either:
+1. **Scan all artifact folders** (planning, implementation, tests, etc.)
+2. **Document explicitly** that only planning artifacts determine brownfield status
+
+Based on AC#3 wording ("existing artifacts are listed"), scanning all folders seems appropriate.
+
+**Related AC:** #3 (existing artifacts are listed for context)
+
+---
+
+#### 🟡 **MEDIUM-4: No Error Handling for Corrupt Manifest**
+**Severity:** MEDIUM  
+**Category:** Error Handling  
+**File:** `apps/core/internal/project/detector.go:60-65`
+
+**Issue:**  
+If `manifest.yaml` exists but is corrupt/unparseable, the error is **silently swallowed**. The project is marked as BMAD-compatible with empty version string.
+
+**Evidence:**
+```go
+// Line 62-64: Error is ignored
+if version, err := readBmadVersion(manifestPath); err == nil {
+    result.BmadVersion = version
+    result.BmadCompatible = isVersionCompatible(version, MinBmadVersion)
+}
+// If err != nil, just continues with BmadVersion = "" and BmadCompatible = false
+```
+
+**Impact:**  
+- Corrupt manifest → project appears valid but with unknown version
+- No indication to user that manifest is broken
+- Could lead to confusing behavior downstream
+
+**Recommendation:**
+```go
+version, err := readBmadVersion(manifestPath)
+if err != nil {
+    result.Error = fmt.Sprintf("Invalid manifest.yaml: %v", err)
+    result.BmadCompatible = false
+} else {
+    result.BmadVersion = version
+    result.BmadCompatible = isVersionCompatible(version, MinBmadVersion)
+}
+```
+
+**Related AC:** #1 (BMAD version is read and validated)
+
+---
+
+### Low Priority Issues
+
+#### 🔵 **LOW-1: Inconsistent Error Field Usage**
+**Severity:** LOW  
+**Category:** API Design  
+**File:** `apps/core/internal/project/detector.go:36`
+
+**Issue:**  
+The `Error` field is only populated for "not BMAD" case (line 54), but not for other error conditions (corrupt manifest, permission denied, etc.).
+
+**Recommendation:**  
+Be consistent - either:
+1. Use `Error` field for **all** validation failures
+2. Or remove it and rely on error return value
+
+Current mix is confusing.
+
+---
+
+#### 🔵 **LOW-2: Missing Test for Symlink Artifacts**
+**Severity:** LOW  
+**Category:** Test Gap  
+**File:** `apps/core/internal/project/detector_test.go`
+
+**Issue:**  
+No test verifies behavior when artifact files are symbolic links.
+
+**Recommendation:**  
+Add test case:
+```go
+func TestScanArtifacts_SymlinksHandled(t *testing.T) {
+    // Create artifact and symlink to it
+    // Verify symlink is (or isn't) included based on desired behavior
+}
+```
+
+---
+
+#### 🔵 **LOW-3: Test Coverage Missing for File Permission Errors**
+**Severity:** LOW  
+**Category:** Test Gap  
+**File:** `apps/core/internal/project/detector_test.go`
+
+**Issue:**  
+No tests verify behavior when:
+- `_bmad/` folder exists but isn't readable (permission denied)
+- `manifest.yaml` exists but isn't readable
+- `planning-artifacts/` exists but isn't readable
+
+**Recommendation:**  
+Add permission-based error tests (may be challenging in CI).
+
+---
+
+### Security Assessment
+
+**Overall Security Rating:** ⚠️ **MEDIUM RISK**
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| **Input Validation** | ⚠️ Partial | No path validation (MEDIUM-1) |
+| **Path Traversal** | ⚠️ Vulnerable | No symlink resolution (MEDIUM-1) |
+| **Injection Attacks** | ✅ Safe | No command execution, SQL, etc. |
+| **Data Exposure** | ⚠️ Minor | Could scan sensitive directories |
+| **Error Information Leakage** | ✅ Safe | No sensitive data in errors |
+| **Dependency Security** | ✅ Safe | Only trusted deps (yaml.v3) |
+
+**Critical Security Recommendations:**
+1. Add path validation before scanning
+2. Resolve symlinks to prevent attacks
+3. Consider allowlist/blocklist for system paths
+
+---
+
+### Performance Evaluation
+
+**Overall Performance:** ✅ **GOOD**
+
+| Metric | Assessment | Notes |
+|--------|------------|-------|
+| **Time Complexity** | ✅ O(n) | n = number of artifacts, efficient |
+| **Memory Usage** | ✅ Low | Streams directory entries, doesn't load all files |
+| **I/O Efficiency** | ✅ Good | Single pass through directories |
+| **Scalability** | ⚠️ Moderate | No recursion, handles 1000s of artifacts |
+
+**Performance Notes:**
+- Scanning is fast for typical projects (<100 artifacts)
+- Could be slow for projects with 10,000+ artifacts (unlikely)
+- No recursive scanning prevents deep directory issues
+
+**Recommendation:** Add optional depth limit if recursion is added later.
+
+---
+
+### Test Coverage Verification
+
+**Claimed:** 18 tests (15 detector + 3 handler)  
+**Verified:** ✅ **18 tests, all passing**
+
+```
+✅ detector_test.go: 9 tests
+✅ brownfield_test.go: 6 tests  
+✅ project_handlers_test.go: 3 tests
+```
+
+**Test Quality Assessment:**
+
+| Category | Coverage | Notes |
+|----------|----------|-------|
+| **Happy Paths** | ✅ Excellent | All ACs covered |
+| **Error Cases** | ⚠️ Good | Missing permission errors |
+| **Edge Cases** | ⚠️ Good | Missing symlinks, corrupt YAML |
+| **Integration** | ✅ Excellent | Handler tests verify full stack |
+| **Boundary Conditions** | ✅ Good | Empty folders, no manifest tested |
+
+**Missing Test Cases:**
+1. Symlinked artifact files (LOW-2)
+2. Permission denied scenarios (LOW-3)
+3. Very long filenames (edge case)
+4. Non-UTF8 filenames (edge case)
+
+**Test Coverage Estimate:** ~85% (good, but room for improvement)
+
+---
+
+### Acceptance Criteria Verification
+
+**AC#1: Detect _bmad/ folder and verify version compatibility**  
+✅ **PASSED** - Folder detection works  
+⚠️ **ISSUE** - Version comparison broken for 10.x+ (CRITICAL-1)
+
+**AC#2: Identify greenfield projects (no artifacts)**  
+✅ **PASSED** - Correctly identifies greenfield
+
+**AC#3: Identify brownfield projects with artifact listing**  
+⚠️ **PARTIAL** - Works for planning artifacts only (MEDIUM-3)  
+⚠️ **PARTIAL** - Missing modification timestamps (MEDIUM-2)
+
+**AC#4: Handle non-BMAD projects gracefully**  
+✅ **PASSED** - Returns appropriate error message
+
+**Overall AC Compliance:** 75% (3/4 fully passed, 1 partially passed with critical bug)
+
+---
+
+### Code Quality Assessment
+
+**Overall Code Quality:** ✅ **GOOD** (B+)
+
+| Aspect | Rating | Notes |
+|--------|--------|-------|
+| **Readability** | ✅ Excellent | Clear naming, good comments |
+| **Maintainability** | ✅ Good | Well-structured, single responsibility |
+| **Testability** | ✅ Excellent | Highly testable, good test coverage |
+| **Error Handling** | ⚠️ Fair | Some errors silently ignored (MEDIUM-4) |
+| **Documentation** | ✅ Good | Function comments present |
+| **Go Idioms** | ✅ Excellent | Proper use of Go patterns |
+| **Type Safety** | ✅ Excellent | Strong typing throughout |
+
+**Positive Observations:**
+- Excellent separation of concerns (detector, scanner, type detector)
+- Good use of const for magic strings
+- Proper struct tags for JSON serialization
+- Clean, readable code with minimal complexity
+
+**Areas for Improvement:**
+- Add package-level documentation
+- More robust error handling
+- Consider adding logging for debugging
+
+---
+
+### Architecture Compliance
+
+**Requirements from Dev Notes:**
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| Use `gopkg.in/yaml.v3` | ✅ Met | Correctly used for manifest parsing |
+| Check `_bmad/` folder | ✅ Met | Line 50 |
+| Check `_bmad/_config/manifest.yaml` | ✅ Met | Line 61 |
+| Parse BMAD version | ✅ Met | Line 88-103 |
+| Verify 6.0.0+ compatibility | ⚠️ Buggy | CRITICAL-1 |
+| Scan `_bmad-output/` | ✅ Met | Line 68 |
+| Categorize artifacts | ✅ Met | Line 136-153 |
+| Register JSON-RPC handler | ✅ Met | `project.scan` registered |
+| TypeScript types | ✅ Met | Full type safety |
+
+**Architectural Strengths:**
+- Clean layering (detector → handler → preload)
+- Type safety across Go/TypeScript boundary
+- No coupling to other modules
+
+**Architectural Concerns:**
+- No logging/observability
+- No metrics/monitoring hooks
+
+---
+
+### Action Items Summary
+
+**MUST FIX (Blocking):**
+1. ⚠️ **CRITICAL-1:** Fix semantic version comparison for 10.x+ versions
+
+**SHOULD FIX (Recommended):**
+2. 🟡 **MEDIUM-1:** Add path validation and symlink resolution
+3. 🟡 **MEDIUM-2:** Populate artifact modification timestamps
+4. 🟡 **MEDIUM-3:** Scan all artifact folders or document limitation
+5. 🟡 **MEDIUM-4:** Handle corrupt manifest errors explicitly
+
+**NICE TO HAVE (Optional):**
+6. 🔵 **LOW-1:** Consistent error field usage
+7. 🔵 **LOW-2:** Add symlink test coverage
+8. 🔵 **LOW-3:** Add permission error tests
+
+---
+
+### Final Recommendation
+
+**Status:** **CHANGES REQUESTED** ⚠️
+
+**Rationale:**  
+The implementation is well-designed and thoroughly tested, BUT the semantic version comparison bug (CRITICAL-1) is a **blocking issue** that will cause silent failures for BMAD 10.x+. This MUST be fixed before merging.
+
+The medium-priority issues (path validation, missing timestamps, incomplete scanning) are important for production quality but not blockers.
+
+**Estimated Fix Time:** 2-4 hours  
+- Critical fix: 30 min  
+- Medium fixes: 1-2 hours  
+- Testing: 30-60 min
+
+**Next Steps:**
+1. Fix CRITICAL-1 (version comparison)
+2. Address MEDIUM-1 through MEDIUM-4
+3. Add missing test coverage
+4. Re-run full test suite
+5. Request re-review
+
+**Approval Conditions:**
+- ✅ CRITICAL-1 fixed and tested
+- ✅ At least 3 of 4 medium issues addressed
+- ✅ All tests passing
+- ✅ No new security vulnerabilities introduced
+
+---
+
+**Review Completed:** 2026-01-23  
+**Reviewer Signature:** Claude Code (Senior Developer Agent)
+
 ## File List
 
 ### New Files Created

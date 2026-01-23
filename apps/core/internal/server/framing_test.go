@@ -293,6 +293,79 @@ func TestMessageWriterRequestRoundtrip(t *testing.T) {
 	}
 }
 
+// TestMessageReaderDoSProtection verifies that messages exceeding MaxMessageSize are rejected
+func TestMessageReaderDoSProtection(t *testing.T) {
+	tests := []struct {
+		name        string
+		length      uint32
+		wantErr     error
+		wantErrType string
+	}{
+		{
+			name:    "valid small message",
+			length:  100,
+			wantErr: nil,
+		},
+		{
+			name:        "oversized by 1 byte",
+			length:      MaxMessageSize + 1,
+			wantErr:     ErrMessageTooLarge,
+			wantErrType: "ErrMessageTooLarge",
+		},
+		{
+			name:        "extremely large (100MB)",
+			length:      100 * 1024 * 1024,
+			wantErr:     ErrMessageTooLarge,
+			wantErrType: "ErrMessageTooLarge",
+		},
+		{
+			name:        "maximum uint32 (4GB) - DoS attack vector",
+			length:      0xFFFFFFFF,
+			wantErr:     ErrMessageTooLarge,
+			wantErrType: "ErrMessageTooLarge",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create frame with specified length prefix
+			frame := make([]byte, 4)
+			binary.BigEndian.PutUint32(frame, tt.length)
+
+			// If valid size, append actual payload + newline
+			if tt.wantErr == nil {
+				payload := `{"jsonrpc":"2.0","method":"test","id":1}`
+				// Pad to exact length if needed
+				if tt.length > uint32(len(payload)) {
+					payload += strings.Repeat(" ", int(tt.length)-len(payload))
+				} else {
+					payload = payload[:tt.length]
+				}
+				frame = append(frame, []byte(payload)...)
+				frame = append(frame, '\n')
+			}
+			// For error cases, don't append payload (test will fail on length check)
+
+			reader := NewMessageReader(bytes.NewReader(frame))
+			_, err := reader.ReadRequest()
+
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Errorf("expected error %v, got nil", tt.wantErrType)
+					return
+				}
+				if err != tt.wantErr {
+					t.Errorf("got error %v, want %v", err, tt.wantErr)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for valid size: %v", err)
+				}
+			}
+		})
+	}
+}
+
 // createFrame creates a length-prefixed frame from a JSON payload
 func createFrame(payload string) []byte {
 	frame := make([]byte, 4+len(payload)+1)

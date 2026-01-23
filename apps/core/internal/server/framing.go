@@ -5,8 +5,17 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 )
+
+// MaxMessageSize defines the maximum allowed message size (1MB)
+// This prevents DoS attacks via unbounded memory allocation.
+// Source: architecture.md line 375 - "1MB buffer size limit"
+const MaxMessageSize = 1024 * 1024 // 1 MB
+
+// ErrMessageTooLarge is returned when a message exceeds MaxMessageSize
+var ErrMessageTooLarge = errors.New("message size exceeds maximum allowed (1MB)")
 
 // MessageReader reads length-prefixed JSON-RPC messages from an io.Reader.
 // Frame format: [4 bytes: big-endian length][N bytes: JSON payload][1 byte: newline]
@@ -29,18 +38,23 @@ func (mr *MessageReader) ReadRequest() (*Request, error) {
 	}
 	length := binary.BigEndian.Uint32(lengthBuf)
 
-	// 2. Read JSON payload
+	// 2. Validate message size to prevent DoS attacks
+	if length > MaxMessageSize {
+		return nil, ErrMessageTooLarge
+	}
+
+	// 3. Read JSON payload
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(mr.reader, payload); err != nil {
 		return nil, err
 	}
 
-	// 3. Read and discard trailing newline
+	// 4. Read and discard trailing newline
 	if _, err := mr.reader.ReadByte(); err != nil {
 		return nil, err
 	}
 
-	// 4. Parse JSON into Request
+	// 5. Parse JSON into Request
 	var req Request
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return nil, err
