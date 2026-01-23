@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SettingsScreen } from './SettingsScreen'
 import type { Settings } from '../../types/settings'
@@ -75,7 +75,6 @@ describe('SettingsScreen', () => {
   })
 
   it('updates settings when input changes', async () => {
-    const user = userEvent.setup()
     const setSpy = vi.spyOn(window.api.settings, 'set').mockResolvedValue({
       ...mockSettings,
       maxRetries: 5
@@ -87,10 +86,12 @@ describe('SettingsScreen', () => {
       expect(screen.getByText('Settings')).toBeInTheDocument()
     })
 
-    const maxRetriesInput = screen.getByLabelText('Maximum Retries')
-    await user.clear(maxRetriesInput)
-    await user.type(maxRetriesInput, '5')
+    const maxRetriesInput = screen.getByLabelText('Maximum Retries') as HTMLInputElement
+    
+    // Use fireEvent.change to atomically set the value to avoid intermediate states
+    fireEvent.change(maxRetriesInput, { target: { value: '5' } })
 
+    // Wait for settings.set to be called with the expected value
     await waitFor(() => {
       expect(setSpy).toHaveBeenCalledWith({ maxRetries: 5 })
     })
