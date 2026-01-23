@@ -54,7 +54,7 @@ func (rm *RecentManager) Add(path string) error {
 	// Create new entry
 	project := RecentProject{
 		Path:       path,
-		Name:       filepath.Base(path),
+		Name:       SanitizeProjectName(filepath.Base(path)),
 		LastOpened: time.Now(),
 	}
 
@@ -89,13 +89,20 @@ func (rm *RecentManager) removeWithoutLock(path string) {
 }
 
 // SetContext sets the context description for a project
+// The context is sanitized to prevent stored XSS attacks
 func (rm *RecentManager) SetContext(path string, context string) error {
+	// Sanitize context to prevent XSS and limit length
+	sanitizedContext, err := SanitizeContext(context)
+	if err != nil {
+		return fmt.Errorf("invalid context: %w", err)
+	}
+
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
 	for i := range rm.projects {
 		if rm.projects[i].Path == path {
-			rm.projects[i].Context = context
+			rm.projects[i].Context = sanitizedContext
 			return rm.save()
 		}
 	}
