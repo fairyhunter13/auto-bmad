@@ -100,10 +100,8 @@ alias other-alias='ls -la'
 		}
 		expectedProfiles[profile.Name] = true
 
-		// All profiles should have aliases
-		if profile.Alias == "" {
-			t.Errorf("Profile %s has empty alias", profile.Name)
-		}
+		// SECURITY: Alias field removed to prevent shell injection
+		// Profile names are validated (alphanumeric only) and safe to use
 	}
 
 	// Verify all expected profiles were found

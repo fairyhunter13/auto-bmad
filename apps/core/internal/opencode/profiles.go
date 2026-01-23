@@ -10,8 +10,9 @@ import (
 
 // Profile represents an OpenCode profile from .bash_aliases.
 type Profile struct {
-	Name      string `json:"name"`
-	Alias     string `json:"alias"` // Full alias command
+	Name string `json:"name"`
+	// SECURITY: Do not expose raw alias command to prevent shell injection
+	// The command is validated but not stored. Execution should use profile name only.
 	Available bool   `json:"available"`
 	Error     string `json:"error,omitempty"`
 	IsDefault bool   `json:"isDefault"`
@@ -69,14 +70,15 @@ func GetProfiles() (*ProfilesResult, error) {
 			profileName := matches[1]
 			aliasCmd := matches[2]
 
+			// Validate profile availability (command is validated but not stored)
+			available, errMsg := validateProfile(aliasCmd)
+
 			profile := Profile{
 				Name:      profileName,
-				Alias:     aliasCmd,
+				Available: available,
+				Error:     errMsg,
 				IsDefault: false,
 			}
-
-			// Validate profile availability
-			profile.Available, profile.Error = validateProfile(aliasCmd)
 
 			result.Profiles = append(result.Profiles, profile)
 		}
