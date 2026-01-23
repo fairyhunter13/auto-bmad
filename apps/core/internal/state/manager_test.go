@@ -334,3 +334,333 @@ func TestStateManagerProjectProfiles(t *testing.T) {
 		t.Error("Project profile 2 not persisted")
 	}
 }
+
+// TestStateManagerValidation_MaxRetries verifies maxRetries bounds validation
+func TestStateManagerValidation_MaxRetries(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     int
+		wantError bool
+	}{
+		{"valid_min", 0, false},
+		{"valid_mid", 5, false},
+		{"valid_max", 10, false},
+		{"invalid_negative", -1, true},
+		{"invalid_too_high", 11, true},
+		{"invalid_way_too_high", 999, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"maxRetries": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(maxRetries=%d) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(maxRetries=%d) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_RetryDelay verifies retryDelay bounds validation
+func TestStateManagerValidation_RetryDelay(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     int
+		wantError bool
+	}{
+		{"valid_min", 0, false},
+		{"valid_mid", 5000, false},
+		{"valid_max", 60000, false},
+		{"invalid_negative", -1, true},
+		{"invalid_too_high", 60001, true},
+		{"invalid_way_too_high", 999999, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"retryDelay": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(retryDelay=%d) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(retryDelay=%d) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_Theme verifies theme enum validation
+func TestStateManagerValidation_Theme(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{"valid_light", "light", false},
+		{"valid_dark", "dark", false},
+		{"valid_system", "system", false},
+		{"invalid_empty", "", true},
+		{"invalid_wrong", "blue", true},
+		{"invalid_injection", "dark'; DROP TABLE users;--", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"theme": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(theme=%q) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(theme=%q) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_LastProjectPath verifies path traversal prevention
+func TestStateManagerValidation_LastProjectPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{"valid_absolute", "/home/user/project", false},
+		{"valid_relative", "project", false},
+		{"invalid_parent", "../project", true},
+		{"invalid_traversal", "/home/../../etc/passwd", true},
+		{"invalid_hidden", "project/../../../secrets", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"lastProjectPath": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(lastProjectPath=%q) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(lastProjectPath=%q) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_StepTimeoutDefault verifies timeout bounds
+func TestStateManagerValidation_StepTimeoutDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     int
+		wantError bool
+	}{
+		{"valid_min", 1000, false},
+		{"valid_mid", 300000, false},
+		{"valid_max", 3600000, false},
+		{"invalid_too_low", 999, true},
+		{"invalid_zero", 0, true},
+		{"invalid_negative", -1000, true},
+		{"invalid_too_high", 3600001, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"stepTimeoutDefault": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(stepTimeoutDefault=%d) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(stepTimeoutDefault=%d) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_HeartbeatInterval verifies heartbeat bounds
+func TestStateManagerValidation_HeartbeatInterval(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     int
+		wantError bool
+	}{
+		{"valid_min", 1000, false},
+		{"valid_mid", 60000, false},
+		{"valid_max", 300000, false},
+		{"invalid_too_low", 999, true},
+		{"invalid_zero", 0, true},
+		{"invalid_negative", -1000, true},
+		{"invalid_too_high", 300001, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"heartbeatInterval": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(heartbeatInterval=%d) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(heartbeatInterval=%d) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_RecentProjectsMax verifies recent projects limit
+func TestStateManagerValidation_RecentProjectsMax(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		value     int
+		wantError bool
+	}{
+		{"valid_min", 1, false},
+		{"valid_mid", 10, false},
+		{"valid_max", 50, false},
+		{"invalid_zero", 0, true},
+		{"invalid_negative", -1, true},
+		{"invalid_too_high", 51, true},
+		{"invalid_way_too_high", 1000, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"recentProjectsMax": tt.value})
+			if tt.wantError && err == nil {
+				t.Errorf("Set(recentProjectsMax=%d) should have failed", tt.value)
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(recentProjectsMax=%d) failed: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_ProjectProfiles verifies project profile path validation
+func TestStateManagerValidation_ProjectProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		profiles  map[string]interface{}
+		wantError bool
+	}{
+		{
+			name:      "valid_paths",
+			profiles:  map[string]interface{}{"/home/user/project1": "claude", "/home/user/project2": "gpt"},
+			wantError: false,
+		},
+		{
+			name:      "invalid_traversal_in_key",
+			profiles:  map[string]interface{}{"../../../etc/passwd": "hacker"},
+			wantError: true,
+		},
+		{
+			name:      "valid_then_invalid",
+			profiles:  map[string]interface{}{"/valid/path": "claude", "../invalid": "hacker"},
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sm.Set(map[string]interface{}{"projectProfiles": tt.profiles})
+			if tt.wantError && err == nil {
+				t.Error("Set(projectProfiles) with path traversal should have failed")
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("Set(projectProfiles) failed: %v", err)
+			}
+		})
+	}
+}
+
+// TestStateManagerValidation_MultipleFields verifies atomic validation (all or nothing)
+func TestStateManagerValidation_MultipleFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	// Set valid initial state
+	initialUpdates := map[string]interface{}{
+		"maxRetries": 5,
+		"theme":      "dark",
+	}
+	if err := sm.Set(initialUpdates); err != nil {
+		t.Fatalf("Initial Set() failed: %v", err)
+	}
+
+	// Try to update with one valid and one invalid field
+	updates := map[string]interface{}{
+		"maxRetries": 7,     // valid
+		"theme":      "bad", // invalid
+	}
+
+	err = sm.Set(updates)
+	if err == nil {
+		t.Fatal("Set() should have failed with invalid theme")
+	}
+
+	// Verify original values are unchanged (atomic behavior)
+	settings := sm.Get()
+	if settings.MaxRetries != 5 {
+		t.Errorf("MaxRetries changed despite validation failure: got %d, want 5", settings.MaxRetries)
+	}
+	if settings.Theme != "dark" {
+		t.Errorf("Theme changed despite validation failure: got %q, want \"dark\"", settings.Theme)
+	}
+}

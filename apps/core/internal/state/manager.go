@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -95,11 +96,73 @@ func (sm *StateManager) Get() *Settings {
 
 // Set updates settings with the provided values and saves to disk.
 // Only recognized fields are updated; unknown fields are ignored.
+// Input validation is performed to prevent invalid or malicious values.
+// Validation is atomic: all fields are validated before any changes are applied.
 func (sm *StateManager) Set(updates map[string]interface{}) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// Apply updates to known fields
+	// PHASE 1: Validate ALL fields first (atomic validation)
+	for key, value := range updates {
+		switch key {
+		case "maxRetries":
+			val := toInt(value)
+			if val < 0 || val > 10 {
+				return fmt.Errorf("maxRetries must be 0-10, got %d", val)
+			}
+
+		case "retryDelay":
+			val := toInt(value)
+			if val < 0 || val > 60000 {
+				return fmt.Errorf("retryDelay must be 0-60000ms, got %d", val)
+			}
+
+		case "stepTimeoutDefault":
+			val := toInt(value)
+			if val < 1000 || val > 3600000 {
+				return fmt.Errorf("stepTimeoutDefault must be 1000-3600000ms (1s-1h), got %d", val)
+			}
+
+		case "heartbeatInterval":
+			val := toInt(value)
+			if val < 1000 || val > 300000 {
+				return fmt.Errorf("heartbeatInterval must be 1000-300000ms (1s-5min), got %d", val)
+			}
+
+		case "theme":
+			if v, ok := value.(string); ok {
+				if v != "light" && v != "dark" && v != "system" {
+					return fmt.Errorf("theme must be 'light', 'dark', or 'system', got %q", v)
+				}
+			}
+
+		case "lastProjectPath":
+			if v, ok := value.(string); ok {
+				// Prevent path traversal attacks
+				if strings.Contains(v, "..") {
+					return fmt.Errorf("lastProjectPath contains path traversal sequence '..'")
+				}
+			}
+
+		case "recentProjectsMax":
+			val := toInt(value)
+			if val < 1 || val > 50 {
+				return fmt.Errorf("recentProjectsMax must be 1-50, got %d", val)
+			}
+
+		case "projectProfiles":
+			if v, ok := value.(map[string]interface{}); ok {
+				for k := range v {
+					// Validate project path doesn't contain path traversal
+					if strings.Contains(k, "..") {
+						return fmt.Errorf("projectProfiles key contains path traversal sequence '..'")
+					}
+				}
+			}
+		}
+	}
+
+	// PHASE 2: Apply updates (only after all validations pass)
 	for key, value := range updates {
 		switch key {
 		case "maxRetries":
