@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -103,12 +104,42 @@ func readBmadVersion(manifestPath string) (string, error) {
 }
 
 // isVersionCompatible checks if version meets minimum requirement
+// Uses proper semantic version comparison to handle versions like 10.0.0 correctly
 func isVersionCompatible(version, minVersion string) bool {
-	// Simple semantic version comparison using string comparison
-	// This works for semantic versions like "6.0.0", "6.1.0", etc.
-	// because they sort lexicographically in the same order as numerically
-	// when each part has the same number of digits
-	return version >= minVersion
+	return compareVersions(version, minVersion) >= 0
+}
+
+// compareVersions compares two semantic versions (e.g., "10.0.0" vs "6.0.0")
+// Returns: -1 if v1 < v2, 0 if v1 == v2, 1 if v1 > v2
+func compareVersions(v1, v2 string) int {
+	parts1 := parseVersion(v1)
+	parts2 := parseVersion(v2)
+
+	// Compare each part (major, minor, patch)
+	for i := 0; i < 3; i++ {
+		if parts1[i] < parts2[i] {
+			return -1
+		}
+		if parts1[i] > parts2[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
+// parseVersion parses a semantic version string into [major, minor, patch]
+// Returns [0, 0, 0] if parsing fails
+func parseVersion(version string) [3]int {
+	var parts [3]int
+	segments := strings.Split(version, ".")
+
+	for i := 0; i < 3 && i < len(segments); i++ {
+		if num, err := strconv.Atoi(segments[i]); err == nil {
+			parts[i] = num
+		}
+	}
+
+	return parts
 }
 
 // scanArtifacts scans _bmad-output for existing artifacts

@@ -240,3 +240,94 @@ func TestScanArtifacts_MultipleTypes(t *testing.T) {
 	assert.True(t, typeMap["product-brief"])
 	assert.True(t, typeMap["other"])
 }
+// TestCompareVersions tests the semantic version comparison logic
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		name     string
+		v1       string
+		v2       string
+		expected int // -1, 0, or 1
+	}{
+		{"equal versions", "6.0.0", "6.0.0", 0},
+		{"v1 greater major", "7.0.0", "6.0.0", 1},
+		{"v1 lesser major", "5.0.0", "6.0.0", -1},
+		{"v1 greater minor", "6.1.0", "6.0.0", 1},
+		{"v1 lesser minor", "6.0.0", "6.1.0", -1},
+		{"v1 greater patch", "6.0.1", "6.0.0", 1},
+		{"v1 lesser patch", "6.0.0", "6.0.1", -1},
+		
+		// CRITICAL BUG FIX: Version 10+ comparison
+		{"version 10 vs 6 (major)", "10.0.0", "6.0.0", 1},
+		{"version 10 vs 9 (major)", "10.0.0", "9.0.0", 1},
+		{"version 20 vs 9 (major)", "20.0.0", "9.0.0", 1},
+		{"version 6 vs 10 (major)", "6.0.0", "10.0.0", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareVersions(tt.v1, tt.v2)
+			assert.Equal(t, tt.expected, result, 
+				"compareVersions(%s, %s) = %d, want %d", 
+				tt.v1, tt.v2, result, tt.expected)
+		})
+	}
+}
+
+// TestIsVersionCompatible tests the version compatibility check
+func TestIsVersionCompatible(t *testing.T) {
+	tests := []struct {
+		name       string
+		version    string
+		minVersion string
+		compatible bool
+	}{
+		{"exact match", "6.0.0", "6.0.0", true},
+		{"greater major", "7.0.0", "6.0.0", true},
+		{"greater minor", "6.1.0", "6.0.0", true},
+		{"greater patch", "6.0.1", "6.0.0", true},
+		{"lesser major", "5.0.0", "6.0.0", false},
+		{"lesser minor", "6.0.0", "6.1.0", false},
+		{"lesser patch", "6.0.0", "6.0.1", false},
+		
+		// CRITICAL BUG FIX: BMAD version 10+ should be compatible with 6.0.0
+		{"version 10 compatible", "10.0.0", "6.0.0", true},
+		{"version 15 compatible", "15.2.1", "6.0.0", true},
+		{"version 100 compatible", "100.0.0", "6.0.0", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isVersionCompatible(tt.version, tt.minVersion)
+			assert.Equal(t, tt.compatible, result,
+				"isVersionCompatible(%s, %s) = %v, want %v",
+				tt.version, tt.minVersion, result, tt.compatible)
+		})
+	}
+}
+
+// TestParseVersion tests the version parsing logic
+func TestParseVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		version  string
+		expected [3]int
+	}{
+		{"standard version", "6.0.0", [3]int{6, 0, 0}},
+		{"version with minor", "6.1.0", [3]int{6, 1, 0}},
+		{"version with patch", "6.1.2", [3]int{6, 1, 2}},
+		{"double digit major", "10.5.3", [3]int{10, 5, 3}},
+		{"triple digit major", "123.45.67", [3]int{123, 45, 67}},
+		{"incomplete version", "6.1", [3]int{6, 1, 0}},
+		{"major only", "6", [3]int{6, 0, 0}},
+		{"invalid version", "invalid", [3]int{0, 0, 0}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseVersion(tt.version)
+			assert.Equal(t, tt.expected, result,
+				"parseVersion(%s) = %v, want %v",
+				tt.version, result, tt.expected)
+		})
+	}
+}
