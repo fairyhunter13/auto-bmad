@@ -12,9 +12,21 @@ import { Writable, Readable } from 'stream'
 import { BackendProcess } from './backend'
 
 // Mock child_process
-vi.mock('child_process', () => ({
-  spawn: vi.fn()
-}))
+vi.mock('child_process', async () => {
+  const mockSpawn = vi.fn()
+  const mocked = {
+    spawn: mockSpawn,
+    exec: vi.fn(),
+    execFile: vi.fn(),
+    fork: vi.fn(),
+    // Provide ChildProcess type as a class for TypeScript
+    ChildProcess: class {}
+  }
+  return {
+    ...mocked,
+    default: mocked  // Add default export for CJS compatibility
+  }
+})
 
 // Mock electron
 vi.mock('electron', () => ({
