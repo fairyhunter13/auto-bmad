@@ -16,7 +16,21 @@ const mockApi = {
     scan: vi.fn(),
     getRecent: vi.fn(),
     addRecent: vi.fn(),
-    removeRecent: vi.fn()
+    removeRecent: vi.fn(),
+    setContext: vi.fn()
+  },
+  network: {
+    getStatus: vi.fn()
+  },
+  settings: {
+    get: vi.fn(),
+    set: vi.fn(),
+    reset: vi.fn()
+  },
+  on: {
+    backendCrash: vi.fn(),
+    backendStatus: vi.fn(),
+    networkStatusChanged: vi.fn()
   }
 }
 

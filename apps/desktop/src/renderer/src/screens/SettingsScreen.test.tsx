@@ -21,10 +21,28 @@ describe('SettingsScreen', () => {
   beforeEach(() => {
     // Mock the window.api object
     global.window.api = {
+      dialog: {
+        selectFolder: vi.fn()
+      },
+      project: {
+        scan: vi.fn(),
+        getRecent: vi.fn(),
+        addRecent: vi.fn(),
+        removeRecent: vi.fn(),
+        setContext: vi.fn()
+      },
+      network: {
+        getStatus: vi.fn()
+      },
       settings: {
         get: vi.fn().mockResolvedValue(mockSettings),
         set: vi.fn().mockResolvedValue(mockSettings),
         reset: vi.fn().mockResolvedValue(mockSettings)
+      },
+      on: {
+        backendCrash: vi.fn(),
+        backendStatus: vi.fn(),
+        networkStatusChanged: vi.fn()
       }
     } as any
   })
