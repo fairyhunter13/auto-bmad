@@ -45,14 +45,20 @@
             <action>If remembered from earlier in conversation, use it</action>
             <action>Echo: "**[SCOPE: {scope}]** Using scope from conversation context"</action>
           </source>
-          <source n="3" parallel-safe="false">
+          <source n="3" parallel-safe="true">
+            <name>BMAD_SCOPE environment variable</name>
+            <desc>Check for BMAD_SCOPE env var (set per terminal)</desc>
+            <action>If BMAD_SCOPE is set, use its value as scope</action>
+            <action>Echo: "**[SCOPE: {scope}]** Using scope from BMAD_SCOPE env var"</action>
+          </source>
+          <source n="4" parallel-safe="false">
             <name>Session context file (.bmad-scope)</name>
             <desc>Check for .bmad-scope file in project root</desc>
             <warning>This file is shared across ALL sessions - NOT parallel-safe!</warning>
             <action>If exists, read active_scope value</action>
             <action>Echo: "**[SCOPE: {scope}]** Using scope from .bmad-scope (shared file - not parallel-safe)"</action>
           </source>
-          <source n="4" parallel-safe="true">
+          <source n="5" parallel-safe="true">
             <name>Prompt user</name>
             <desc>Only if scope-required and none found from above sources</desc>
             <ask>This workflow requires a scope. Select existing scope or create new one.</ask>

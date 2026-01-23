@@ -1,35 +1,5 @@
 # Intercept Network Call Utility
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The network interception principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] network mocking [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] API stubbing [CURRENT_YEAR]"
-```
-
-**Framework-specific network interception APIs:**
-| Framework | Spy (Observe) | Stub (Mock) | URL Matching |
-|-----------|---------------|-------------|--------------|
-| Playwright | `page.waitForResponse()` | `page.route()` | Glob, regex |
-| Cypress | `cy.intercept()` spy | `cy.intercept()` stub | Glob, regex |
-| Selenium | Browser DevTools Protocol | External proxy (BrowserMob) | Custom |
-| WebdriverIO | `browser.mock()` | `browser.mock()` | Glob, regex |
-| Puppeteer | `page.setRequestInterception()` | `request.respond()` | Custom |
-| TestCafe | `RequestHook` | `RequestMock` | Filter function |
-
-**Universal network interception principles (ALL frameworks):**
-
-- ALWAYS intercept BEFORE triggering the request (prevents race conditions)
-- Use glob patterns for flexible URL matching
-- Return mocked data for deterministic tests
-- Await the intercepted response before assertions
-
 ## Principle
 
 Intercept network requests with a single declarative call that returns a Promise. Automatically parse JSON responses, support both spy (observe) and stub (mock) patterns, and use powerful glob pattern matching for URL filtering.
@@ -360,7 +330,11 @@ The utility uses [picomatch](https://github.com/micromatch/picomatch) for powerf
 // Vanilla Playwright - complex predicate
 const predicate = (response) => {
   const url = response.url();
-  return url.endsWith('/api/users') || url.match(/\/api\/users\/\d+/) || (url.includes('/api/users/') && url.includes('/profile'));
+  return (
+    url.endsWith('/api/users') ||
+    url.match(/\/api\/users\/\d+/) ||
+    (url.includes('/api/users/') && url.includes('/profile'))
+  );
 };
 page.waitForResponse(predicate);
 

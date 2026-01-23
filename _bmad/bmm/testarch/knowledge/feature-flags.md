@@ -1,36 +1,5 @@
 # Feature Flag Governance
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and feature flag systems.**
-
-The feature flag governance principles below are universal. Code examples use TypeScript as reference implementations.
-
-**Before generating code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_LANGUAGE] feature flag testing [CURRENT_YEAR]"
-Search: "[YOUR_FLAG_SYSTEM] testing best practices [CURRENT_YEAR]"
-```
-
-**Feature flag systems (language-agnostic):**
-| System | SDK Languages | Testing API | Notes |
-|--------|---------------|-------------|-------|
-| LaunchDarkly | JS, Python, Java, Go, Ruby, .NET | REST API | Enterprise |
-| Unleash | JS, Java, Python, Go, .NET | REST API | Open source |
-| ConfigCat | JS, Python, Java, Go, .NET, Ruby | REST API | Simple setup |
-| Split.io | JS, Java, Python, Go, Ruby, .NET | REST API | Enterprise |
-| Flagsmith | JS, Python, Java, Go, Ruby, .NET | REST API | Open source |
-| Custom | Any | Custom | DIY |
-
-**Universal feature flag testing principles (ALL systems):**
-
-- Test both enabled AND disabled flag states
-- Clean up flag targeting after each test
-- Centralize flag definitions (single source of truth)
-- Maintain flag lifecycle checklist (create → test → monitor → remove)
-- Script flag mutations via API (not manual UI)
-
 ## Principle
 
 Feature flags enable controlled rollouts and A/B testing, but require disciplined testing governance. Centralize flag definitions in a frozen enum, test both enabled and disabled states, clean up targeting after each spec, and maintain a comprehensive flag lifecycle checklist. For LaunchDarkly-style systems, script API helpers to seed variations programmatically rather than manual UI mutations.

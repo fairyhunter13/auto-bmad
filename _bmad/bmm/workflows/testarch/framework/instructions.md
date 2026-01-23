@@ -3,15 +3,146 @@
 # Test Framework Setup
 
 **Workflow ID**: `_bmad/bmm/testarch/framework`
-**Version**: 5.0 (BMad v6 - Language Agnostic)
+**Version**: 4.0 (BMad v6)
 
 ---
 
 ## Overview
 
-Initialize a production-ready test framework architecture with fixtures, helpers, configuration, and best practices. This workflow scaffolds the complete testing infrastructure for ANY programming language and test framework.
+Initialize a production-ready test framework architecture (Playwright or Cypress) with fixtures, helpers, configuration, and best practices. This workflow scaffolds the complete testing infrastructure for modern web applications.
 
-**Language Agnostic**: This workflow detects the project's language and framework, then generates appropriate scaffolding using real-time documentation fetching.
+---
+
+## Phase 0: Language & Workspace Detection (Language-Agnostic)
+
+**Critical:** Before scaffolding, detect the project's language, testing characteristics, and workspace context.
+
+### Actions
+
+1. **Check for Workspace Context**
+
+   ```
+   # Check if this is a monorepo/workspace
+   IF exists {project-root}/_bmad/testarch/workspace-profile.yaml:
+     SET is_workspace = TRUE
+     READ workspace_profile
+
+     # Determine target package
+     IF user_specified_package:
+       SET target_package = user_specified_package
+     ELIF current_directory is inside a package:
+       SET target_package = current_package
+     ELSE:
+       PROMPT user:
+         "This is a workspace with {package_count} packages.
+          Which package should *framework scaffold?
+
+          [List packages with their languages]
+
+          Or use --package flag: *framework --package @myorg/api"
+
+     # Load the package's language profile
+     profile_path = workspace_profile.packages[target_package].profile_path
+     READ language_profile from profile_path
+
+   ELIF workspace_marker_exists:
+     # Workspace detected but not yet profiled
+     INFORM "Workspace detected. Running language inference for all packages..."
+     EXECUTE `*language-inference --workspace`
+     RELOAD and continue from step 1
+
+   ELSE:
+     SET is_workspace = FALSE
+     # Continue with single-project flow
+   ```
+
+2. **Check for Existing Language Profile (Single Project)**
+
+   ```
+   IF NOT is_workspace:
+     IF exists {project-root}/_bmad/testarch/language-profile.yaml:
+       READ profile
+       IF profile.overall_confidence >= 0.8:
+         USE existing profile
+         SKIP to Phase 0 Step 4
+       ELSE:
+         INFORM "Low confidence profile found. Re-running detection..."
+   ```
+
+3. **Run Language Inference (If No Profile)**
+
+   If no profile exists OR confidence is low:
+   - Execute `*language-inference` workflow (or inline detection)
+   - Generate `language-profile.yaml` with detected characteristics
+   - Save to `{project-root}/_bmad/testarch/language-profile.yaml`
+
+   **Reference:** `src/bmm/workflows/testarch/language-inference/instructions.md`
+
+4. **Load Language Profile**
+
+   Read and cache the following from `language-profile.yaml`:
+
+   ```yaml
+   language:
+     inferred_name: # e.g., "TypeScript", "Python", "Go", "Rust"
+     file_extensions: # e.g., [".ts", ".tsx"]
+
+   characteristics:
+     typing: # "static", "gradual", "dynamic"
+     async_model: # "async-await", "promises", "goroutines", "none"
+     test_structure: # "bdd_style", "function_based", "class_based"
+     cleanup_idiom: # "hooks", "defer", "context_manager", "try_finally"
+     assertion_style: # "expect_chain", "assert_function", "assert_method"
+     fixture_pattern: # "extend_base", "decorator", "setup_method"
+
+   test_framework:
+     detected: # e.g., "playwright", "pytest", "go-test", "cargo-test"
+     import_pattern: # e.g., "import { test } from '@playwright/test'"
+     run_command: # e.g., "npx playwright test"
+
+   syntax_patterns:
+     test_function: # Template for test declaration
+     assertion: # Template for assertions
+     import_statement: # Template for imports
+
+   # For workspace packages
+   workspace_context: # (if applicable)
+     is_workspace_package: true
+     workspace_root: '../..'
+     package_name: '@myorg/api-client'
+     depends_on: ['@myorg/types']
+     shared_test_utils: ['@myorg/test-utils']
+   ```
+
+5. **Load Adaptation Rules**
+
+   **Knowledge Base Reference:** `testarch/knowledge/adaptation-rules.md`
+
+   Load pattern translation rules for adapting abstract patterns to the detected language:
+   - Cleanup strategies per language
+   - Fixture composition patterns
+   - Factory patterns
+   - Assertion syntax mappings
+
+6. **Load Shared Test Infrastructure (Workspace Only)**
+
+   ```
+   IF is_workspace:
+     # Check for shared test utilities
+     shared_utils = workspace_profile.shared_test_infrastructure.test_utilities
+
+     # These can be referenced in scaffolded tests
+     FOR util IN shared_utils:
+       REGISTER util.name for import resolution
+       NOTE util.exports as available helpers
+
+     # Check for workspace defaults
+     workspace_defaults = workspace_profile.workspace_defaults
+     USE workspace_defaults.test_framework as framework preference
+     USE workspace_defaults.test_patterns as file patterns
+   ```
+
+**Halt Condition:** If language detection fails (confidence < 0.3) AND user cannot provide sample test file, HALT with message: "Unable to detect project language. Please provide a sample test file or run `*learn-language`."
 
 ---
 
@@ -19,153 +150,10 @@ Initialize a production-ready test framework architecture with fixtures, helpers
 
 **Critical:** Verify these requirements before proceeding. If any fail, HALT and notify the user.
 
-- ✅ Project has identifiable language (package manifest, source files, or config)
-- ✅ No modern test harness is already configured for the detected framework
+- ✅ Language profile exists with confidence >= 0.5 (from Phase 0)
+- ✅ Project build file exists (detected in Phase 0)
+- ✅ No existing test harness is already configured (check for existing framework config)
 - ✅ Architectural/stack context available (project type, bundler, dependencies)
-
----
-
-## Step 0: Detect Project Environment (MANDATORY)
-
-### Purpose
-
-Identify the project's programming language, existing test framework (if any), and conventions before scaffolding. This enables language-agnostic test generation.
-
-### Actions
-
-1. **Detect Programming Language**
-
-   Scan project root for language indicators:
-   - Check for package/manifest files (see `detection/language-hints.yaml`)
-   - Identify primary language from file extensions
-   - Note if multiple languages exist (e.g., TypeScript frontend + Python backend)
-
-   **Common Detection Patterns:**
-   | Files Found | Language |
-   |-------------|----------|
-   | package.json, tsconfig.json | TypeScript |
-   | package.json (no tsconfig) | JavaScript |
-   | requirements.txt, pyproject.toml | Python |
-   | go.mod | Go |
-   | Cargo.toml | Rust |
-   | pom.xml, build.gradle | Java/Kotlin |
-   | \*.csproj | C#/.NET |
-   | Gemfile | Ruby |
-   | composer.json | PHP |
-
-2. **Check for Existing Test Framework**
-
-   Search for test configuration files:
-   - `playwright.config.*`, `cypress.config.*` → E2E frameworks
-   - `jest.config.*`, `vitest.config.*` → Unit test frameworks
-   - `pytest.ini`, `conftest.py` → Python testing
-   - `*_test.go` files → Go testing
-   - Other framework-specific configs (see `language-hints.yaml`)
-
-   **If found:** HALT with message: "Existing test framework detected: [framework]. Use workflow `test-review` to audit or manually extend."
-
-3. **Detect Project Conventions**
-
-   If existing test files found:
-   - Note directory structure (tests/, **tests**/, spec/, etc.)
-   - Identify naming patterns (_.spec._, _.test._, _\_test._)
-   - Check import/module style
-   - Note assertion library preferences
-
-4. **Web Fetch Latest Documentation (MANDATORY - Use NOW())**
-
-   Before generating ANY scaffolding:
-
-   ```
-   ============================================================
-   CRITICAL: Fetch with CURRENT TIMESTAMP - NOW()
-   ============================================================
-
-   1. Record fetch timestamp: fetch_time = NOW()
-      - Use ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ
-      - Example: 2026-01-23T14:30:00Z
-
-   2. Include timestamp in ALL web searches:
-      - "[framework] official documentation January 2026"
-      - "[framework] best practices 2026"
-      - "[framework] latest version changelog"
-
-   3. Fetch for detected/selected framework:
-      - Installation guide (current version)
-      - Configuration reference (current API)
-      - Best practices / getting started
-      - Breaking changes / migration guides
-
-   4. Verify freshness:
-      - Check documentation date/version
-      - Look for "last updated" indicators
-      - Prefer official sources over cached/archived pages
-
-   5. If fetch fails:
-      - Retry with alternative search terms
-      - Try GitHub repository directly
-      - Mark output as "[UNVERIFIED]" if all fetches fail
-
-   WHY NOW() IS REQUIRED:
-   - Framework APIs change frequently
-   - Best practices evolve monthly
-   - Yesterday's patterns may be deprecated today
-   - Each workflow run must get fresh data
-   ```
-
-5. **Record Detection Results**
-
-   Store for use in subsequent steps (include fetch timestamp):
-
-   ```yaml
-   detected:
-     detection_timestamp: '{NOW() in ISO 8601}' # REQUIRED
-     language: '{language}'
-     language_version: '{version if detectable}'
-     existing_framework: '{framework or none}'
-     test_directory: '{existing test dir or default}'
-     naming_convention: '{pattern}'
-     docs_fetched:
-       - url: '{official docs url}'
-         fetched_at: '{NOW() timestamp}' # REQUIRED
-         verified: true/false
-   ```
-
-   REQUIRED: Fetch current documentation for detected/selected framework
-   1. Identify framework (from detection or user selection)
-   2. Web fetch official documentation:
-      - Installation guide
-      - Configuration reference
-      - Best practices / getting started
-   3. Check for latest version and breaking changes
-   4. Note any deprecation warnings
-
-   Example searches:
-   - "[framework] official documentation [year]"
-   - "[framework] configuration reference"
-   - "[framework] v[version] migration guide"
-
-   ```
-
-   ```
-
-6. **Record Detection Results**
-
-   Store for use in subsequent steps:
-
-   ```yaml
-   detected:
-     language: '{language}'
-     language_version: '{version if detectable}'
-     existing_framework: '{framework or none}'
-     test_directory: '{existing test dir or default}'
-     naming_convention: '{pattern}'
-     docs_fetched:
-       - url: '{official docs url}'
-         fetched_at: '{timestamp}'
-   ```
-
-**Halt Condition:** If language cannot be detected and user doesn't provide guidance, HALT with message: "Unable to detect project language. Please specify the primary language and preferred test framework."
 
 ---
 
@@ -173,16 +161,47 @@ Identify the project's programming language, existing test framework (if any), a
 
 ### Actions
 
-1. **Validate package.json**
+1. **Validate Project Structure (Language-Aware)**
+
+   Based on detected language from Phase 0:
+
+   **JavaScript/TypeScript:**
    - Read `{project-root}/package.json`
    - Extract project type (React, Vue, Angular, Next.js, Node, etc.)
    - Identify bundler (Vite, Webpack, Rollup, esbuild)
    - Note existing test dependencies
 
+   **Python:**
+   - Read `pyproject.toml`, `requirements.txt`, or `setup.py`
+   - Extract project type (Django, Flask, FastAPI, etc.)
+   - Note existing test dependencies (pytest, unittest)
+
+   **Go:**
+   - Read `go.mod`
+   - Extract module name and dependencies
+   - Note existing test patterns
+
+   **Rust:**
+   - Read `Cargo.toml`
+   - Extract crate name and dependencies
+   - Note existing test patterns
+
+   **Other Languages:**
+   - Read detected build file from language profile
+   - Extract project metadata
+   - Note existing test patterns
+
 2. **Check for Existing Framework**
-   - Search for `playwright.config.*`, `cypress.config.*`, `cypress.json`
-   - Check `package.json` for `@playwright/test` or `cypress` dependencies
-   - If found, HALT with message: "Existing test framework detected. Use workflow `upgrade-framework` instead."
+
+   Search for test framework config based on detected language:
+
+   **JavaScript/TypeScript:** `playwright.config.*`, `cypress.config.*`, `jest.config.*`, `vitest.config.*`
+   **Python:** `pytest.ini`, `pyproject.toml[tool.pytest]`, `conftest.py`
+   **Go:** `*_test.go` files with custom framework imports
+   **Rust:** `tests/` directory with integration tests
+   **Other:** Framework-specific config from language profile
+
+   If found, HALT with message: "Existing test framework detected. Use workflow `upgrade-framework` instead."
 
 3. **Gather Context**
    - Look for architecture documents (`architecture.md`, `tech-spec*.md`)
@@ -199,40 +218,57 @@ Identify the project's programming language, existing test framework (if any), a
 
 1. **Framework Selection (Language-Aware)**
 
-   Based on detected language from Step 0, recommend appropriate test frameworks:
+   **Read from Language Profile:**
 
-   **Framework Selection by Language:**
+   If `language_profile.test_framework.detected` is set with high confidence:
+   - Use the detected framework
+   - Skip framework selection logic
 
-   | Language      | E2E/Integration      | Unit/Component        | Recommended Default |
-   | ------------- | -------------------- | --------------------- | ------------------- |
-   | TypeScript/JS | Playwright, Cypress  | Jest, Vitest          | Playwright + Vitest |
-   | Python        | Playwright, Selenium | pytest                | pytest + Playwright |
-   | Java          | Selenium, Playwright | JUnit 5, TestNG       | JUnit 5 + Selenium  |
-   | C#            | Playwright, Selenium | xUnit, NUnit          | xUnit + Playwright  |
-   | Go            | Chromedp, Rod        | testing (built-in)    | testing + testify   |
-   | Ruby          | Capybara, Selenium   | RSpec, Minitest       | RSpec + Capybara    |
-   | Rust          | -                    | cargo test (built-in) | cargo test          |
-   | PHP           | Codeception, Panther | PHPUnit, Pest         | PHPUnit/Pest        |
+   **Otherwise, select based on detected language:**
 
-   **Selection Strategy:**
-   1. Check detected language from Step 0
-   2. Check for existing framework preferences in dependencies
-   3. Consider project type (web app, API, CLI, library)
-   4. Ask user if multiple valid options exist
-   5. **CRITICAL**: Web fetch latest docs for selected framework before generating config
+   **JavaScript/TypeScript:**
+   - **Playwright** (recommended for): Large repos, multi-browser, complex flows, parallel workers
+   - **Cypress** (recommended for): Small teams, component testing, real-time reloading
+   - **Vitest** (recommended for): Unit/component tests in Vite projects
+   - **Jest** (recommended for): Unit tests in React/Node projects
 
-2. **Create Directory Structure**
+   **Python:**
+   - **pytest** (recommended, default): Most flexible, fixture-based, extensive plugins
+   - **unittest** (fallback): Built-in, class-based tests
 
-   Generate structure appropriate for detected language:
+   **Go:**
+   - **go-test** (default): Built-in testing package
+   - **testify** (optional): Extended assertions and mocking
 
-   **Universal Pattern (adapt naming to language conventions):**
+   **Rust:**
+   - **cargo-test** (default): Built-in test framework
+   - **rstest** (optional): Parametrized tests, fixtures
+
+   **Java/Kotlin:**
+   - **JUnit 5** (recommended): Modern test framework
+   - **TestNG** (alternative): Advanced test configuration
+
+   **Other Languages:**
+   - Use framework from language profile if detected
+   - Or prompt user for preferred test framework
+
+   **Detection Strategy:**
+   - Check language profile for existing framework
+   - Check build file for existing test dependencies
+   - Consider `project_size` variable from workflow config
+   - Use `framework_preference` variable if set
+   - Default to language's recommended framework
+
+2. **Create Directory Structure (Language-Aware)**
+
+   Use the language profile to determine idiomatic directory structure:
+
+   **JavaScript/TypeScript (default):**
 
    ```
    {project-root}/
-   ├── tests/                        # Root test directory (or language convention)
-   │   ├── e2e/                      # End-to-end tests
-   │   ├── integration/              # Integration tests
-   │   ├── unit/                     # Unit tests
+   ├── tests/                        # Root test directory
+   │   ├── e2e/                      # E2E test files
    │   ├── support/                  # Framework infrastructure
    │   │   ├── fixtures/             # Test fixtures (data, mocks)
    │   │   ├── helpers/              # Utility functions
@@ -240,63 +276,211 @@ Identify the project's programming language, existing test framework (if any), a
    │   └── README.md                 # Test suite documentation
    ```
 
-   **Language-Specific Conventions:**
-   - **Python**: `tests/`, `conftest.py` for fixtures
-   - **Go**: `*_test.go` files alongside source, `testdata/` directory
-   - **Java**: `src/test/java/`, `src/test/resources/`
-   - **Ruby**: `spec/` for RSpec, `test/` for Minitest
-   - **Rust**: `tests/` for integration, inline `#[cfg(test)]` for unit
-
-3. **Generate Configuration File (Framework-Specific)**
-
-   **CRITICAL**: Use freshly fetched documentation to generate config.
-   Do NOT rely on memorized examples - APIs and best practices change.
-
-   **Generation Process:**
+   **Python:**
 
    ```
-   1. Web fetch: "[framework] configuration reference [year]"
-   2. Web fetch: "[framework] recommended settings"
-   3. Check for version-specific configuration options
-   4. Generate config using CURRENT API from fetched docs
-   5. Include comments linking to official documentation
+   {project-root}/
+   ├── tests/                        # Root test directory
+   │   ├── e2e/                      # E2E test files (test_*.py)
+   │   ├── conftest.py               # Shared fixtures (pytest)
+   │   ├── fixtures/                 # Test fixtures
+   │   ├── factories/                # Data factories
+   │   └── README.md                 # Test suite documentation
    ```
 
-   **Universal Configuration Principles (all frameworks):**
-   - Timeout settings: action ~15s, test ~60s
-   - Parallel execution enabled (where supported)
-   - Retry on failure in CI (typically 2 retries)
-   - Failure artifacts: screenshots, traces, logs
-   - Reporter configuration: console + CI-compatible (JUnit XML)
-   - Environment-based configuration (local vs CI)
-
-   **Example Structure (generate from fetched docs):**
+   **Go:**
 
    ```
-   // Generated: {timestamp}
-   // Framework: {framework} v{version}
-   // Docs: {official_docs_url}
-
-   {config_content_from_fetched_docs}
+   {project-root}/
+   ├── tests/                        # Integration tests (or alongside source)
+   │   ├── e2e/                      # E2E test files (*_test.go)
+   │   ├── testutil/                 # Test utilities and helpers
+   │   ├── fixtures/                 # Test fixtures
+   │   └── README.md                 # Test suite documentation
    ```
 
-   **For TypeScript/JavaScript (Playwright example - fetch latest):**
-   Web fetch <https://playwright.dev/docs/test-configuration> then generate.
+   **Rust:**
 
-   **For Python (pytest example - fetch latest):**
-   Web fetch <https://docs.pytest.org/en/stable/reference/customize.html> then generate.
+   ```
+   {project-root}/
+   ├── tests/                        # Integration tests
+   │   ├── e2e/                      # E2E test files
+   │   ├── common/                   # Shared test utilities (mod.rs)
+   │   └── README.md                 # Test suite documentation
+   ├── src/
+   │   └── lib.rs                    # Unit tests inline (#[cfg(test)])
+   ```
 
-   **For Java (JUnit 5 example - fetch latest):**
-   Web fetch <https://junit.org/junit5/docs/current/user-guide/> then generate.
+   **Note**: Users organize test files as needed. The **fixtures/factories** folders are the critical pattern for test data used across tests.
 
-   **For other languages:**
-   Web search "[framework] configuration guide" and generate from official docs.
+   **Workspace/Monorepo Structure:**
+
+   When operating in a workspace context, create test infrastructure that works with shared utilities:
+
+   ```
+   {workspace-root}/
+   ├── _bmad/
+   │   └── testarch/
+   │       ├── workspace-profile.yaml   # Workspace-level profile
+   │       └── packages/
+   │           └── {package}/
+   │               └── language-profile.yaml
+   ├── packages/
+   │   ├── test-utils/                  # Shared test utilities (if exists)
+   │   │   ├── src/
+   │   │   │   ├── fixtures/            # Shared fixtures
+   │   │   │   ├── factories/           # Shared factories
+   │   │   │   ├── mocks/               # Shared mocks
+   │   │   │   └── index.ts             # Exports
+   │   │   └── package.json
+   │   │
+   │   └── {target-package}/            # Package being scaffolded
+   │       ├── tests/                   # Package-specific tests
+   │       │   ├── e2e/
+   │       │   ├── unit/
+   │       │   └── fixtures/            # Package-local fixtures
+   │       ├── {framework-config}       # e.g., vitest.config.ts
+   │       └── package.json
+   │
+   ├── e2e/                             # Cross-package E2E tests (if applicable)
+   │   ├── tests/
+   │   └── {framework-config}
+   │
+   └── fixtures/                        # Workspace-wide fixtures (optional)
+   ```
+
+   **Workspace-Aware Imports:**
+
+   When generating test files in a workspace package, import shared utilities:
+
+   ```typescript
+   // TypeScript workspace example
+   import { createMockUser, setupTestDb } from '@myorg/test-utils';
+   import { test, expect } from 'vitest';
+   ```
+
+   ```python
+   # Python workspace example
+   from shared.test_utils import create_mock_user, setup_test_db
+   import pytest
+   ```
+
+   ```go
+   // Go workspace example
+   import (
+       "testing"
+       "myorg.com/shared/testutil"
+   )
+   ```
+
+3. **Generate Configuration File (Language-Aware)**
+
+   **IMPORTANT:** Use the language profile's `syntax_patterns` to generate idiomatic configuration.
+
+   **Knowledge Base Reference:** `testarch/knowledge/adaptation-rules.md`
+
+   Generate configuration based on detected language and framework:
+
+   ***
+
+   **JavaScript/TypeScript + Playwright** (`playwright.config.ts`):
+
+   ```typescript
+   import { defineConfig, devices } from '@playwright/test';
+
+   export default defineConfig({
+     testDir: './tests/e2e',
+     fullyParallel: true,
+     forbidOnly: !!process.env.CI,
+     retries: process.env.CI ? 2 : 0,
+     workers: process.env.CI ? 1 : undefined,
+     timeout: 60 * 1000,
+     expect: { timeout: 15 * 1000 },
+     use: {
+       baseURL: process.env.BASE_URL || 'http://localhost:3000',
+       trace: 'retain-on-failure',
+       screenshot: 'only-on-failure',
+       video: 'retain-on-failure',
+     },
+     reporter: [['html'], ['junit', { outputFile: 'test-results/junit.xml' }], ['list']],
+     projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+   });
+   ```
+
+   ***
+
+   **Python + pytest** (`pyproject.toml` or `pytest.ini`):
+
+   ```toml
+   # pyproject.toml
+   [tool.pytest.ini_options]
+   testpaths = ["tests"]
+   python_files = ["test_*.py", "*_test.py"]
+   python_functions = ["test_*"]
+   addopts = "-v --tb=short --strict-markers"
+   markers = [
+       "e2e: End-to-end tests",
+       "unit: Unit tests",
+       "integration: Integration tests",
+   ]
+   timeout = 60
+   ```
+
+   **Python + pytest-playwright** (`conftest.py`):
+
+   ```python
+   import pytest
+   from playwright.sync_api import Page
+
+   @pytest.fixture(scope="session")
+   def browser_context_args(browser_context_args):
+       return {**browser_context_args, "base_url": "http://localhost:3000"}
+   ```
+
+   ***
+
+   **Go + go-test** (no config file, conventions):
+
+   ```go
+   // tests/e2e/main_test.go
+   package e2e
+
+   import (
+       "os"
+       "testing"
+   )
+
+   var baseURL string
+
+   func TestMain(m *testing.M) {
+       baseURL = os.Getenv("BASE_URL")
+       if baseURL == "" {
+           baseURL = "http://localhost:3000"
+       }
+       os.Exit(m.Run())
+   }
+   ```
+
+   ***
+
+   **Rust + cargo-test** (`Cargo.toml`):
+
+   ```toml
+   [dev-dependencies]
+   tokio = { version = "1", features = ["full", "test-util"] }
+
+   [[test]]
+   name = "e2e"
+   path = "tests/e2e/mod.rs"
+   ```
+
+   ***
+
+   **For other languages:** Use `adaptation-rules.md` to translate the abstract configuration pattern to the target language's idioms.
 
 4. **Generate Environment Configuration**
 
-   Create environment config appropriate for the language:
-
-   **For all languages - `.env.example`:**
+   Create `.env.example`:
 
    ```bash
    # Test Environment Configuration
@@ -315,139 +499,485 @@ Identify the project's programming language, existing test framework (if any), a
    TEST_API_KEY=
    ```
 
-   **Language-specific version files:**
-   - **Node.js**: `.nvmrc` with LTS version
-   - **Python**: `.python-version` or `pyproject.toml` python version
-   - **Ruby**: `.ruby-version`
-   - **Go**: `go.mod` already specifies version
-   - **Java**: `.java-version` or build tool config
+5. **Generate Node Version File**
 
-5. **Implement Fixture Architecture (Language-Agnostic)**
+   Create `.nvmrc`:
+
+   ```
+   20.11.0
+   ```
+
+   (Use Node version from existing `.nvmrc` or default to current LTS)
+
+6. **Implement Fixture Architecture (Language-Aware)**
 
    **Knowledge Base Reference**: `testarch/knowledge/fixture-architecture.md`
 
-   **Universal Fixture Principles:**
-   - Fixtures provide reusable setup/teardown
-   - Auto-cleanup: resources created during setup are deleted in teardown
-   - Composable: combine multiple fixtures without inheritance
-   - Type-safe: leverage language's type system where available
+   Generate fixtures using the language profile's `fixture_pattern` and `cleanup_idiom`:
 
-   **CRITICAL**: Web fetch fixture patterns for detected framework:
+   ***
 
+   **JavaScript/TypeScript + Playwright** (`tests/support/fixtures/index.ts`):
+
+   ```typescript
+   import { test as base } from '@playwright/test';
+   import { UserFactory } from './factories/user-factory';
+
+   type TestFixtures = {
+     userFactory: UserFactory;
+   };
+
+   export const test = base.extend<TestFixtures>({
+     userFactory: async ({}, use) => {
+       const factory = new UserFactory();
+       await use(factory);
+       await factory.cleanup(); // Auto-cleanup
+     },
+   });
+
+   export { expect } from '@playwright/test';
    ```
-   1. Web fetch: "[framework] fixtures guide"
-   2. Web fetch: "[framework] test setup teardown"
-   3. Generate using CURRENT patterns from fetched docs
+
+   ***
+
+   **Python + pytest** (`tests/conftest.py`):
+
+   ```python
+   import pytest
+   from tests.factories.user_factory import UserFactory
+
+   @pytest.fixture
+   def user_factory():
+       factory = UserFactory()
+       yield factory  # Provide to test
+       factory.cleanup()  # Auto-cleanup after test
+
+   @pytest.fixture
+   def authenticated_user(user_factory, page):
+       user = user_factory.create()
+       # ... login logic ...
+       yield user
+       user_factory.delete(user.id)
    ```
 
-   **Generate fixtures following language conventions:**
+   ***
 
-   | Language     | Fixture Pattern              | Example Location          |
-   | ------------ | ---------------------------- | ------------------------- |
-   | TypeScript   | `test.extend<T>()`           | `tests/support/fixtures/` |
-   | Python       | `@pytest.fixture`            | `conftest.py`             |
-   | Java         | `@BeforeEach/@AfterEach`     | Test classes              |
-   | Go           | `TestMain`, helper functions | `*_test.go`               |
-   | Ruby (RSpec) | `let`, `before/after`        | `spec/support/`           |
-   | C#           | `[SetUp]/[TearDown]`         | Test classes              |
+   **Go + go-test** (`tests/testutil/fixtures.go`):
 
-6. **Implement Data Factories (Language-Agnostic)**
+   ```go
+   package testutil
+
+   import "testing"
+
+   type UserFactory struct {
+       createdUsers []string
+   }
+
+   func NewUserFactory() *UserFactory {
+       return &UserFactory{}
+   }
+
+   func (f *UserFactory) Create() User {
+       user := createTestUser()
+       f.createdUsers = append(f.createdUsers, user.ID)
+       return user
+   }
+
+   func (f *UserFactory) Cleanup(t *testing.T) {
+       t.Cleanup(func() {
+           for _, id := range f.createdUsers {
+               deleteUser(id)
+           }
+       })
+   }
+   ```
+
+   ***
+
+   **Rust + cargo-test** (`tests/common/mod.rs`):
+
+   ```rust
+   pub struct UserFactory {
+       created_users: Vec<String>,
+   }
+
+   impl UserFactory {
+       pub fn new() -> Self {
+           Self { created_users: vec![] }
+       }
+
+       pub fn create(&mut self) -> User {
+           let user = create_test_user();
+           self.created_users.push(user.id.clone());
+           user
+       }
+   }
+
+   impl Drop for UserFactory {
+       fn drop(&mut self) {
+           for id in &self.created_users {
+               delete_user(id);
+           }
+       }
+   }
+   ```
+
+   ***
+
+   **For other languages:** Translate the abstract fixture pattern using `adaptation-rules.md`:
+   - **Cleanup idiom:** defer (Go), context_manager (Python), Drop trait (Rust), try-finally (Java), hooks (JS/TS)
+   - **Fixture composition:** extend_base (Playwright), pytest fixtures (Python), test helpers (Go)
+
+7. **Implement Data Factories (Language-Aware)**
 
    **Knowledge Base Reference**: `testarch/knowledge/data-factories.md`
 
-   **Universal Factory Principles:**
-   - Generate realistic fake data (no hardcoded values)
-   - Support overrides for specific test scenarios
-   - Track created resources for cleanup
-   - Parallel-safe (unique IDs, no collisions)
+   Generate factories using the language profile's patterns:
 
-   **Fake Data Libraries by Language:**
-   | Language | Library | Docs |
-   |----------|---------|------|
-   | TypeScript/JS | @faker-js/faker | <https://fakerjs.dev> |
-   | Python | Faker | <https://faker.readthedocs.io> |
-   | Java | JavaFaker, DataFaker | <https://github.com/datafaker-net/datafaker> |
-   | Go | gofakeit | <https://github.com/brianvoe/gofakeit> |
-   | Ruby | Faker | <https://github.com/faker-ruby/faker> |
-   | C# | Bogus | <https://github.com/bchavez/Bogus> |
-   | PHP | FakerPHP | <https://fakerphp.github.io> |
-   | Rust | fake-rs | <https://github.com/cksac/fake-rs> |
+   ***
 
-   **CRITICAL**: Web fetch factory patterns for detected language:
+   **JavaScript/TypeScript** (`tests/support/factories/user-factory.ts`):
 
-   ```
-   1. Web fetch: "[language] test data factory pattern"
-   2. Web fetch: "[faker_library] documentation"
-   3. Generate factories using CURRENT API from fetched docs
-   ```
+   ```typescript
+   import { faker } from '@faker-js/faker';
 
-7. **Generate Sample Tests (Language-Specific)**
+   export class UserFactory {
+     private createdUsers: string[] = [];
 
-   Generate sample tests using detected framework and conventions:
+     async createUser(overrides = {}) {
+       const user = {
+         email: faker.internet.email(),
+         name: faker.person.fullName(),
+         password: faker.internet.password({ length: 12 }),
+         ...overrides,
+       };
+       const response = await fetch(`${process.env.API_URL}/users`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(user),
+       });
+       const created = await response.json();
+       this.createdUsers.push(created.id);
+       return created;
+     }
 
-   **Universal Test Structure (Given-When-Then):**
-
-   ```
-   // GIVEN: Initial state/setup
-   // WHEN: Action being tested
-   // THEN: Expected outcome (assertion)
-   ```
-
-   **CRITICAL**: Generate samples using freshly fetched framework docs:
-
-   ```
-   1. Web fetch: "[framework] writing tests guide"
-   2. Web fetch: "[framework] assertions reference"
-   3. Generate tests matching project conventions
-   4. Include comments linking to relevant docs
+     async cleanup() {
+       for (const userId of this.createdUsers) {
+         await fetch(`${process.env.API_URL}/users/${userId}`, { method: 'DELETE' });
+       }
+       this.createdUsers = [];
+     }
+   }
    ```
 
-   **Sample test should demonstrate:**
-   - Basic test structure for the framework
-   - Fixture usage
-   - Factory usage
-   - Assertion patterns
-   - Async handling (if applicable)
+   ***
 
-8. **Update Build/Package Scripts**
+   **Python** (`tests/factories/user_factory.py`):
 
-   Add test scripts appropriate for the language:
+   ```python
+   from faker import Faker
+   import requests
+   import os
 
-   **JavaScript/TypeScript (package.json):**
+   fake = Faker()
+
+   class UserFactory:
+       def __init__(self):
+           self.created_users = []
+           self.api_url = os.getenv("API_URL", "http://localhost:3000/api")
+
+       def create(self, **overrides):
+           user_data = {
+               "email": fake.email(),
+               "name": fake.name(),
+               "password": fake.password(length=12),
+               **overrides,
+           }
+           response = requests.post(f"{self.api_url}/users", json=user_data)
+           user = response.json()
+           self.created_users.append(user["id"])
+           return user
+
+       def cleanup(self):
+           for user_id in self.created_users:
+               requests.delete(f"{self.api_url}/users/{user_id}")
+           self.created_users = []
+   ```
+
+   ***
+
+   **Go** (`tests/testutil/user_factory.go`):
+
+   ```go
+   package testutil
+
+   import (
+       "github.com/brianvoe/gofakeit/v6"
+   )
+
+   type UserFactory struct {
+       createdUsers []string
+       apiURL       string
+   }
+
+   func NewUserFactory() *UserFactory {
+       return &UserFactory{
+           apiURL: getEnvOrDefault("API_URL", "http://localhost:3000/api"),
+       }
+   }
+
+   func (f *UserFactory) Create(overrides ...map[string]interface{}) User {
+       user := User{
+           Email:    gofakeit.Email(),
+           Name:     gofakeit.Name(),
+           Password: gofakeit.Password(true, true, true, false, false, 12),
+       }
+       // Apply overrides...
+       created := apiCreateUser(f.apiURL, user)
+       f.createdUsers = append(f.createdUsers, created.ID)
+       return created
+   }
+
+   func (f *UserFactory) Cleanup() {
+       for _, id := range f.createdUsers {
+           apiDeleteUser(f.apiURL, id)
+       }
+       f.createdUsers = nil
+   }
+   ```
+
+   ***
+
+   **Rust** (`tests/common/user_factory.rs`):
+
+   ```rust
+   use fake::{Fake, faker::internet::en::*, faker::name::en::*};
+
+   pub struct UserFactory {
+       created_users: Vec<String>,
+       api_url: String,
+   }
+
+   impl UserFactory {
+       pub fn new() -> Self {
+           Self {
+               created_users: vec![],
+               api_url: std::env::var("API_URL")
+                   .unwrap_or_else(|_| "http://localhost:3000/api".to_string()),
+           }
+       }
+
+       pub async fn create(&mut self) -> User {
+           let user = User {
+               email: SafeEmail().fake(),
+               name: Name().fake(),
+               password: Password(12..13).fake(),
+           };
+           let created = api_create_user(&self.api_url, &user).await;
+           self.created_users.push(created.id.clone());
+           created
+       }
+   }
+
+   impl Drop for UserFactory {
+       fn drop(&mut self) {
+           for id in &self.created_users {
+               // Sync cleanup or spawn cleanup task
+               let _ = std::thread::spawn(|| api_delete_user(&self.api_url, id));
+           }
+       }
+   }
+   ```
+
+   ***
+
+   **For other languages:** Use `adaptation-rules.md` to translate the factory pattern:
+   - Find faker equivalent for the language
+   - Apply cleanup idiom from language profile
+   - Use override pattern appropriate to language (kwargs, options struct, builder)
+
+8. **Generate Sample Tests (Language-Aware)**
+
+   Generate sample tests using the language profile's `syntax_patterns.test_function`:
+
+   ***
+
+   **JavaScript/TypeScript + Playwright** (`tests/e2e/example.spec.ts`):
+
+   ```typescript
+   import { test, expect } from '../support/fixtures';
+
+   test.describe('Example Test Suite', () => {
+     test('should load homepage', async ({ page }) => {
+       await page.goto('/');
+       await expect(page).toHaveTitle(/Home/i);
+     });
+
+     test('should create user and login', async ({ page, userFactory }) => {
+       const user = await userFactory.createUser();
+       await page.goto('/login');
+       await page.fill('[data-testid="email-input"]', user.email);
+       await page.fill('[data-testid="password-input"]', user.password);
+       await page.click('[data-testid="login-button"]');
+       await expect(page.locator('[data-testid="user-menu"]')).toBeVisible();
+     });
+   });
+   ```
+
+   ***
+
+   **Python + pytest + playwright** (`tests/e2e/test_example.py`):
+
+   ```python
+   import pytest
+   from playwright.sync_api import Page, expect
+
+   class TestExampleSuite:
+       def test_should_load_homepage(self, page: Page):
+           page.goto("/")
+           expect(page).to_have_title(re.compile(r"Home", re.IGNORECASE))
+
+       def test_should_create_user_and_login(self, page: Page, user_factory):
+           user = user_factory.create()
+           page.goto("/login")
+           page.fill('[data-testid="email-input"]', user["email"])
+           page.fill('[data-testid="password-input"]', user["password"])
+           page.click('[data-testid="login-button"]')
+           expect(page.locator('[data-testid="user-menu"]')).to_be_visible()
+   ```
+
+   ***
+
+   **Go + go-test** (`tests/e2e/example_test.go`):
+
+   ```go
+   package e2e
+
+   import (
+       "testing"
+       "tests/testutil"
+   )
+
+   func TestShouldLoadHomepage(t *testing.T) {
+       page := testutil.NewPage(t)
+       page.Goto("/")
+       testutil.ExpectTitle(t, page, "Home")
+   }
+
+   func TestShouldCreateUserAndLogin(t *testing.T) {
+       page := testutil.NewPage(t)
+       factory := testutil.NewUserFactory()
+       factory.Cleanup(t) // Register cleanup
+
+       user := factory.Create()
+       page.Goto("/login")
+       page.Fill(`[data-testid="email-input"]`, user.Email)
+       page.Fill(`[data-testid="password-input"]`, user.Password)
+       page.Click(`[data-testid="login-button"]`)
+       testutil.ExpectVisible(t, page, `[data-testid="user-menu"]`)
+   }
+   ```
+
+   ***
+
+   **Rust + cargo-test** (`tests/e2e/example_test.rs`):
+
+   ```rust
+   use crate::common::{UserFactory, TestPage};
+
+   #[tokio::test]
+   async fn test_should_load_homepage() {
+       let page = TestPage::new().await;
+       page.goto("/").await;
+       assert!(page.title().await.contains("Home"));
+   }
+
+   #[tokio::test]
+   async fn test_should_create_user_and_login() {
+       let page = TestPage::new().await;
+       let mut factory = UserFactory::new();
+       let user = factory.create().await;
+
+       page.goto("/login").await;
+       page.fill(r#"[data-testid="email-input"]"#, &user.email).await;
+       page.fill(r#"[data-testid="password-input"]"#, &user.password).await;
+       page.click(r#"[data-testid="login-button"]"#).await;
+       assert!(page.is_visible(r#"[data-testid="user-menu"]"#).await);
+   }
+   ```
+
+   ***
+
+   **For other languages:** Use the `syntax_patterns.test_function` from language profile to generate idiomatic test structure.
+
+9. **Update Build Configuration with Test Scripts (Language-Aware)**
+
+   Add test execution scripts to the appropriate build file:
+
+   ***
+
+   **JavaScript/TypeScript** (`package.json`):
 
    ```json
-   { "scripts": { "test": "[framework] test", "test:e2e": "[e2e-framework] test" } }
+   {
+     "scripts": {
+       "test:e2e": "playwright test",
+       "test:e2e:ui": "playwright test --ui",
+       "test:e2e:headed": "playwright test --headed"
+     }
+   }
    ```
 
-   **Python (pyproject.toml or setup.cfg):**
+   ***
+
+   **Python** (`pyproject.toml` or `Makefile`):
 
    ```toml
-   [tool.pytest.ini_options]
-   testpaths = ["tests"]
+   # pyproject.toml
+   [tool.poetry.scripts]
+   test = "pytest:main"
+
+   # Or Makefile
+   # test-e2e:
+   #     pytest tests/e2e -v
    ```
 
-   **Go (Makefile or go task):**
+   Or provide commands in README:
+
+   ```bash
+   pytest tests/e2e -v           # Run E2E tests
+   pytest tests/e2e -v --headed  # Run with browser visible (playwright)
+   ```
+
+   ***
+
+   **Go** (`Makefile` or README):
 
    ```makefile
-   test: go test ./...
+   # Makefile
+   test-e2e:
+   	go test -v ./tests/e2e/...
+
+   test-e2e-verbose:
+   	go test -v -count=1 ./tests/e2e/...
    ```
 
-   **Java (Maven pom.xml or Gradle):**
-   Add surefire/failsafe plugin configuration
+   ***
 
-   **Fetch latest recommended scripts:**
+   **Rust** (`Cargo.toml` scripts or README):
 
+   ```bash
+   cargo test --test e2e         # Run E2E tests
+   cargo test --test e2e -- --nocapture  # With output
    ```
-   Web fetch: "[framework] npm scripts" or "[framework] recommended commands"
-   ```
 
-9. **Generate Documentation**
+   ***
 
-   Create `tests/README.md` with:
-   - Setup instructions for detected language/framework
-   - Commands to run tests (fetched from official docs)
-   - Links to official documentation
-   - Architecture overview (fixtures, factories, conventions)
+   **Note**: Use `language_profile.test_framework.run_command` for the base command.
+
+10. **Generate Documentation**
+
+    Create `tests/README.md` with setup instructions (see Step 3 deliverables).
 
 ---
 
@@ -493,103 +1023,84 @@ The generated `tests/README.md` should include:
 
 ## Important Notes
 
-### Language-Agnostic Approach
-
-**This workflow adapts to ANY programming language.** The key principle is:
-
-1. **Detect** the project's language and existing conventions
-2. **Fetch** latest documentation for the selected framework
-3. **Generate** code using current patterns from official docs
-4. **Apply** universal testing principles regardless of language
-
 ### Knowledge Base Integration
 
-**Critical:** Load knowledge fragments based on detected language and framework.
+**Critical:** Check configuration and load appropriate fragments.
 
-Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load relevant fragments.
+Read `{config_source}` and check `config.tea_use_playwright_utils`.
 
-**Universal Fragments (load for all languages):**
+**If `config.tea_use_playwright_utils: true` (Playwright Utils Integration):**
 
-- `fixture-architecture.md` - Fixture patterns and composition principles
-- `data-factories.md` - Factory patterns with fake data generation
-- `test-quality.md` - Test design principles (deterministic, isolated, explicit assertions)
+Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load:
 
-**Language-Specific Guidance:**
-After loading universal fragments, adapt patterns to detected language using:
+- `overview.md` - Playwright utils installation and design principles
+- `fixtures-composition.md` - mergeTests composition with playwright-utils
+- `auth-session.md` - Token persistence setup (if auth needed)
+- `api-request.md` - API testing utilities (if API tests planned)
+- `burn-in.md` - Smart test selection for CI (recommend during framework setup)
+- `network-error-monitor.md` - Automatic HTTP error detection (recommend in merged fixtures)
+- `data-factories.md` - Factory patterns with faker (498 lines, 5 examples)
 
-1. Freshly fetched documentation for the framework
-2. Existing project conventions (from Step 0 detection)
-3. Language-specific idioms and best practices
+Recommend installing playwright-utils:
 
-### Real-Time Documentation Fetching
-
-**MANDATORY for every code generation:**
-
-```
-Before generating config, fixtures, factories, or tests:
-1. Web fetch official documentation for detected framework
-2. Check for latest version and API changes
-3. Generate code using CURRENT patterns (not memorized)
-4. Include documentation links in generated code comments
+```bash
+npm install -D @seontechnologies/playwright-utils
 ```
 
-**Why this matters:**
+Recommend adding burn-in and network-error-monitor to merged fixtures for enhanced reliability.
 
-- Framework APIs change frequently
-- Best practices evolve over time
-- Static templates become outdated
-- Real-time fetch ensures accuracy
+**If `config.tea_use_playwright_utils: false` (Traditional Patterns):**
 
-### Universal Testing Principles (All Languages)
+Consult `{project-root}/_bmad/bmm/testarch/tea-index.csv` and load:
 
-**Selector Strategy (for UI tests):**
+- `fixture-architecture.md` - Pure function → fixture → `mergeTests` composition with auto-cleanup (406 lines, 5 examples)
+- `data-factories.md` - Faker-based factories with overrides, nested factories, API seeding, auto-cleanup (498 lines, 5 examples)
+- `network-first.md` - Network-first testing safeguards: intercept before navigate, HAR capture, deterministic waiting (489 lines, 5 examples)
+- `playwright-config.md` - Playwright-specific configuration: environment-based, timeout standards, artifact output, parallelization, project config (722 lines, 5 examples)
+- `test-quality.md` - Test design principles: deterministic, isolated with cleanup, explicit assertions, length/time limits (658 lines, 5 examples)
 
-- Use stable identifiers: `data-testid`, `data-test`, `test-id`
-- Avoid brittle selectors: CSS classes, XPath, DOM structure
-- Prefer accessibility attributes when meaningful
+### Framework-Specific Guidance
 
-**Test Isolation:**
+**Playwright Advantages:**
 
-- Each test runs independently
-- No shared mutable state between tests
-- Auto-cleanup of created resources
+- Worker parallelism (significantly faster for large suites)
+- Trace viewer (powerful debugging with screenshots, network, console)
+- Multi-language support (TypeScript, JavaScript, Python, C#, Java)
+- Built-in API testing capabilities
+- Better handling of multiple browser contexts
 
-**Deterministic Tests:**
+**Cypress Advantages:**
 
-- No flaky tests (race conditions, timing issues)
-- Explicit waits instead of sleep/delays
-- Mocked external dependencies where appropriate
+- Superior developer experience (real-time reloading)
+- Excellent for component testing (Cypress CT or use Vitest)
+- Simpler setup for small teams
+- Better suited for watch mode during development
 
-**Failure Artifacts:**
+**Avoid Cypress when:**
 
-- Capture on failure: screenshots, logs, traces
-- Delete on success to save storage
-- Include enough context for debugging
+- API chains are heavy and complex
+- Multi-tab/window scenarios are common
+- Worker parallelism is critical for CI performance
+
+### Selector Strategy
+
+**Always recommend**:
+
+- `data-testid` attributes for UI elements
+- `data-cy` attributes if Cypress is chosen
+- Avoid brittle CSS selectors or XPath
 
 ### Contract Testing
 
-For microservices architectures, recommend contract testing:
+For microservices architectures, **recommend Pact** for consumer-driven contract testing alongside E2E tests.
 
-- **Pact**: Consumer-driven contracts (multiple languages)
-- **Spring Cloud Contract**: JVM-based services
-- **Dredd**: API Blueprint / OpenAPI validation
+### Failure Artifacts
 
-### Framework Selection Guidance
+Configure **failure-only** capture:
 
-**E2E Framework Selection (by ecosystem):**
-
-| Scenario       | TypeScript/JS        | Python            | Java                | C#/.NET    | Go       |
-| -------------- | -------------------- | ----------------- | ------------------- | ---------- | -------- |
-| Web UI testing | Playwright           | Playwright        | Selenium/Playwright | Playwright | Chromedp |
-| API testing    | Playwright/SuperTest | pytest + requests | REST Assured        | RestSharp  | net/http |
-| Mobile         | Appium               | Appium            | Appium              | Appium     | gomobile |
-
-**Unit Test Framework Selection:**
-
-- Choose framework with best ecosystem integration
-- Prefer frameworks with good IDE support
-- Consider parallel execution capabilities
-- Check community size and maintenance status
+- Screenshots: only on failure
+- Videos: retain on failure (delete on success)
+- Traces: retain on failure (Playwright)
 
 This reduces storage overhead while maintaining debugging capability.
 

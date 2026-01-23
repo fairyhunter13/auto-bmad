@@ -235,16 +235,6 @@ class ScopeInitializer {
   }
 
   /**
-   * Check if a scope directory exists
-   * @param {string} scopeId - The scope ID
-   * @returns {Promise<boolean>} True if exists
-   */
-  async scopeDirectoryExists(scopeId) {
-    const scopePath = path.join(this.outputPath, scopeId);
-    return fs.pathExists(scopePath);
-  }
-
-  /**
    * Get scope directory paths
    * @param {string} scopeId - The scope ID
    * @returns {object} Scope paths

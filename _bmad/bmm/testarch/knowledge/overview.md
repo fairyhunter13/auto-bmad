@@ -1,35 +1,5 @@
 # Playwright Utils Overview
 
-## Language Agnostic
-
-**This knowledge fragment demonstrates patterns with @seontechnologies/playwright-utils, but the underlying principles apply to ALL test frameworks.**
-
-The testing utility patterns below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] test utilities library [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] fixture composition [CURRENT_YEAR]"
-```
-
-**Equivalent utility patterns by framework:**
-| Utility | Playwright Utils | Cypress | pytest | JUnit |
-|---------|-----------------|---------|--------|-------|
-| HTTP Client | `apiRequest` | `cy.request()` | `requests` + pytest fixtures | RestAssured |
-| Polling | `recurse` | `cypress-recurse` | `tenacity` | Awaitility |
-| Auth Session | `auth-session` | `cy.session()` | `pytest-auth` | Custom |
-| Logging | `log` | `cy.log()` | `logging` | SLF4J |
-| File Utils | `file-utils` | Custom commands | Built-in + pandas | Apache Commons |
-| Network Mock | `intercept-network-call` | `cy.intercept()` | `responses` | WireMock |
-
-**Universal test utility principles (ALL frameworks):**
-
-- Build utilities as reusable functions/fixtures
-- Compose utilities for complex test scenarios
-- Provide type-safe APIs with schema validation
-- Support both UI and API testing from same utilities
-
 ## Principle
 
 Use production-ready, fixture-based utilities from `@seontechnologies/playwright-utils` for common Playwright testing patterns. Build test helpers as pure functions first, then wrap in framework-specific fixtures for composability and reuse. **Works equally well for pure API testing (no browser) and UI testing.**
@@ -68,17 +38,17 @@ npm install -D @seontechnologies/playwright-utils
 
 ### Core Testing Utilities
 
-| Utility                    | Purpose                                            | Test Context       |
-| -------------------------- | -------------------------------------------------- | ------------------ |
-| **api-request**            | Typed HTTP client with schema validation and retry | **API/Backend**    |
-| **recurse**                | Polling for async operations, background jobs      | **API/Backend**    |
-| **auth-session**           | Token persistence, multi-user, service-to-service  | **API/Backend/UI** |
-| **log**                    | Playwright report-integrated logging               | **API/Backend/UI** |
-| **file-utils**             | CSV/XLSX/PDF/ZIP reading & validation              | **API/Backend/UI** |
-| **burn-in**                | Smart test selection with git diff                 | **CI/CD**          |
-| **network-recorder**       | HAR record/playback for offline testing            | UI only            |
-| **intercept-network-call** | Network spy/stub with auto JSON parsing            | UI only            |
-| **network-error-monitor**  | Automatic HTTP 4xx/5xx detection                   | UI only            |
+| Utility                    | Purpose                                              | Test Context       |
+| -------------------------- | ---------------------------------------------------- | ------------------ |
+| **api-request**            | Typed HTTP client with schema validation and retry   | **API/Backend**    |
+| **recurse**                | Polling for async operations, background jobs        | **API/Backend**    |
+| **auth-session**           | Token persistence, multi-user, service-to-service    | **API/Backend/UI** |
+| **log**                    | Playwright report-integrated logging                 | **API/Backend/UI** |
+| **file-utils**             | CSV/XLSX/PDF/ZIP reading & validation                | **API/Backend/UI** |
+| **burn-in**                | Smart test selection with git diff                   | **CI/CD**          |
+| **network-recorder**       | HAR record/playback for offline testing              | UI only            |
+| **intercept-network-call** | Network spy/stub with auto JSON parsing              | UI only            |
+| **network-error-monitor**  | Automatic HTTP 4xx/5xx detection                     | UI only            |
 
 **Note**: 6 of 9 utilities work without a browser. Only 3 are UI-specific (network-recorder, intercept-network-call, network-error-monitor).
 

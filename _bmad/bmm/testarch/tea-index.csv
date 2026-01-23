@@ -1,50 +1,40 @@
-# TEA Knowledge Fragment Index
-# =============================
-# All fragments are LANGUAGE-AGNOSTIC - principles apply to any language/framework.
-# TEA will fetch latest framework-specific syntax via real-time web search.
-#
-# Detection files (in detection/):
-#   - language-hints.yaml: Language/framework detection patterns + monorepo detection
-#
-# Usage:
-#   1. TEA detects language/framework from codebase (Step 0-1)
-#   2. TEA fetches latest docs with NOW() timestamp (Step 2)
-#   3. TEA loads relevant knowledge fragments based on task
-#   4. TEA applies universal principles + fetched framework syntax
-#
 id,name,description,tags,fragment_file
-language-hints,Language Detection Hints,"Detection patterns for 30 languages, test frameworks, and monorepo structures","detection,language,framework,monorepo,polyglot",detection/language-hints.yaml
-fixture-architecture,Fixture Architecture,"Composable fixture patterns (pure function → fixture → merge) - language-agnostic","fixtures,architecture,universal",knowledge/fixture-architecture.md
-network-first,Network-First Safeguards,"Intercept-before-navigate workflow, HAR capture, deterministic waits - language-agnostic","network,stability,universal,ui",knowledge/network-first.md
-data-factories,Data Factories and API Setup,"Factories with overrides, API seeding, cleanup discipline - language-agnostic","data,factories,setup,api,backend,seeding,universal",knowledge/data-factories.md
-component-tdd,Component TDD Loop,"Red→green→refactor workflow, provider isolation, accessibility - language-agnostic","component-testing,tdd,ui,universal",knowledge/component-tdd.md
-playwright-config,Test Framework Configuration,"Environment switching, timeout standards, artifact outputs - language-agnostic","config,env,universal",knowledge/playwright-config.md
-ci-burn-in,CI and Burn-In Strategy,"Staged jobs, shard orchestration, burn-in loops, artifact policy - language-agnostic","ci,automation,flakiness,universal",knowledge/ci-burn-in.md
-selective-testing,Selective Test Execution,"Tag/grep usage, spec filters, diff-based runs, promotion rules - language-agnostic","risk-based,selection,strategy,universal",knowledge/selective-testing.md
-feature-flags,Feature Flag Governance,"Enum management, targeting helpers, cleanup, release checklists - language-agnostic","feature-flags,governance,universal",knowledge/feature-flags.md
-contract-testing,Contract Testing Essentials,"Consumer-driven contracts, provider verification, resilience - language-agnostic","contract-testing,api,backend,microservices,service-contract,universal",knowledge/contract-testing.md
-email-auth,Email Authentication Testing,"Magic link extraction, state preservation, caching, negative flows - language-agnostic","email-authentication,security,workflow,universal",knowledge/email-auth.md
-error-handling,Error Handling Checks,"Scoped exception handling, retry validation, telemetry logging - language-agnostic","resilience,error-handling,stability,api,backend,universal",knowledge/error-handling.md
-visual-debugging,Visual Debugging Toolkit,"Trace viewer usage, artifact expectations, accessibility - language-agnostic","debugging,dx,tooling,ui,universal",knowledge/visual-debugging.md
-risk-governance,Risk Governance,"Scoring matrix, category ownership, gate decision rules - language-agnostic","risk,governance,gates,universal",knowledge/risk-governance.md
-probability-impact,Probability and Impact Scale,"Shared definitions for scoring matrix and gate thresholds - language-agnostic","risk,scoring,scale,universal",knowledge/probability-impact.md
-test-quality,Test Quality Definition of Done,"Execution limits, isolation rules, green criteria - language-agnostic","quality,definition-of-done,tests,universal",knowledge/test-quality.md
-nfr-criteria,NFR Review Criteria,"Security, performance, reliability, maintainability status definitions - language-agnostic","nfr,assessment,quality,universal",knowledge/nfr-criteria.md
-test-levels,Test Levels Framework,"Guidelines for choosing unit, integration, or E2E coverage - language-agnostic","testing,levels,selection,api,backend,ui,universal",knowledge/test-levels-framework.md
-test-priorities,Test Priorities Matrix,"P0–P3 criteria, coverage targets, execution ordering - language-agnostic","testing,prioritization,risk,universal",knowledge/test-priorities-matrix.md
-test-healing-patterns,Test Healing Patterns,"Common failure patterns and automated fixes - language-agnostic","healing,debugging,patterns,universal",knowledge/test-healing-patterns.md
-selector-resilience,Selector Resilience,"Robust selector strategies and debugging techniques - language-agnostic","selectors,locators,debugging,ui,universal",knowledge/selector-resilience.md
-timing-debugging,Timing Debugging,"Race condition identification and deterministic wait fixes - language-agnostic","timing,async,debugging,universal",knowledge/timing-debugging.md
-overview,Test Utils Overview,"Design principles and fixture patterns for API and UI testing - language-agnostic","utils,fixtures,api,backend,ui,universal",knowledge/overview.md
-api-request,API Request,"Typed HTTP client, schema validation, retry logic - language-agnostic","api,backend,service-testing,api-testing,universal",knowledge/api-request.md
-network-recorder,Network Recorder,"HAR record/playback, CRUD detection for offline testing - language-agnostic","network,ui,har,universal",knowledge/network-recorder.md
-auth-session,Auth Session,"Token persistence, multi-user, API and browser authentication - language-agnostic","auth,api,backend,jwt,token,universal",knowledge/auth-session.md
-intercept-network-call,Intercept Network Call,"Network spy/stub, response parsing - language-agnostic","network,ui,universal",knowledge/intercept-network-call.md
-recurse,Recurse Polling,"Async polling for API responses, eventual consistency - language-agnostic","polling,api,backend,async,eventual-consistency,universal",knowledge/recurse.md
-log,Log Utility,"Report logging, structured output for tests - language-agnostic","logging,api,ui,universal",knowledge/log.md
-file-utils,File Utilities,"CSV/XLSX/PDF/ZIP validation for exports and downloads - language-agnostic","files,api,backend,ui,universal",knowledge/file-utils.md
-burn-in,Burn-in Runner,"Smart test selection, git diff for CI optimization - language-agnostic","ci,universal",knowledge/burn-in.md
-network-error-monitor,Network Error Monitor,"HTTP 4xx/5xx detection for tests - language-agnostic","monitoring,ui,universal",knowledge/network-error-monitor.md
-fixtures-composition,Fixtures Composition,"Composition patterns for combining test utilities - language-agnostic","fixtures,universal",knowledge/fixtures-composition.md
-api-testing-patterns,API Testing Patterns,"Pure API test patterns: service testing, microservices, GraphQL - language-agnostic","api,backend,service-testing,api-testing,microservices,graphql,no-browser,universal",knowledge/api-testing-patterns.md
-adr-quality-readiness-checklist,ADR Quality Readiness Checklist,"8-category 29-criteria framework for ADR testability and NFR assessment - language-agnostic","nfr,testability,adr,quality,assessment,checklist,universal",knowledge/adr-quality-readiness-checklist.md
+fixture-architecture,Fixture Architecture,"Composable fixture patterns (pure function → fixture → merge) and reuse rules - language-agnostic with TypeScript/Python/Go examples","fixtures,architecture,playwright,cypress,language-agnostic,pytest,go-test",knowledge/fixture-architecture.md
+network-first,Network-First Safeguards,"Intercept-before-navigate workflow, HAR capture, deterministic waits, edge mocking","network,stability,playwright,cypress,ui",knowledge/network-first.md
+data-factories,Data Factories and API Setup,"Factories with overrides, API seeding, cleanup discipline","data,factories,setup,api,backend,seeding",knowledge/data-factories.md
+component-tdd,Component TDD Loop,"Red→green→refactor workflow, provider isolation, accessibility assertions","component-testing,tdd,ui",knowledge/component-tdd.md
+playwright-config,Playwright Config Guardrails,"Environment switching, timeout standards, artifact outputs","playwright,config,env",knowledge/playwright-config.md
+ci-burn-in,CI and Burn-In Strategy,"Staged jobs, shard orchestration, burn-in loops, artifact policy","ci,automation,flakiness",knowledge/ci-burn-in.md
+selective-testing,Selective Test Execution,"Tag/grep usage, spec filters, diff-based runs, promotion rules","risk-based,selection,strategy",knowledge/selective-testing.md
+feature-flags,Feature Flag Governance,"Enum management, targeting helpers, cleanup, release checklists","feature-flags,governance,launchdarkly",knowledge/feature-flags.md
+contract-testing,Contract Testing Essentials,"Pact publishing, provider verification, resilience coverage","contract-testing,pact,api,backend,microservices,service-contract",knowledge/contract-testing.md
+email-auth,Email Authentication Testing,"Magic link extraction, state preservation, caching, negative flows","email-authentication,security,workflow",knowledge/email-auth.md
+error-handling,Error Handling Checks,"Scoped exception handling, retry validation, telemetry logging","resilience,error-handling,stability,api,backend",knowledge/error-handling.md
+visual-debugging,Visual Debugging Toolkit,"Trace viewer usage, artifact expectations, accessibility integration","debugging,dx,tooling,ui",knowledge/visual-debugging.md
+risk-governance,Risk Governance,"Scoring matrix, category ownership, gate decision rules","risk,governance,gates",knowledge/risk-governance.md
+probability-impact,Probability and Impact Scale,"Shared definitions for scoring matrix and gate thresholds","risk,scoring,scale",knowledge/probability-impact.md
+test-quality,Test Quality Definition of Done,"Execution limits, isolation rules, green criteria","quality,definition-of-done,tests",knowledge/test-quality.md
+nfr-criteria,NFR Review Criteria,"Security, performance, reliability, maintainability status definitions","nfr,assessment,quality",knowledge/nfr-criteria.md
+test-levels,Test Levels Framework,"Guidelines for choosing unit, integration, or end-to-end coverage","testing,levels,selection,api,backend,ui",knowledge/test-levels-framework.md
+test-priorities,Test Priorities Matrix,"P0–P3 criteria, coverage targets, execution ordering","testing,prioritization,risk",knowledge/test-priorities-matrix.md
+test-healing-patterns,Test Healing Patterns,"Common failure patterns and automated fixes","healing,debugging,patterns",knowledge/test-healing-patterns.md
+selector-resilience,Selector Resilience,"Robust selector strategies and debugging techniques","selectors,locators,debugging,ui",knowledge/selector-resilience.md
+timing-debugging,Timing Debugging,"Race condition identification and deterministic wait fixes","timing,async,debugging",knowledge/timing-debugging.md
+overview,Playwright Utils Overview,"Installation, design principles, fixture patterns for API and UI testing","playwright-utils,fixtures,api,backend,ui",knowledge/overview.md
+api-request,API Request,"Typed HTTP client, schema validation, retry logic for API and service testing","api,backend,service-testing,api-testing,playwright-utils",knowledge/api-request.md
+network-recorder,Network Recorder,"HAR record/playback, CRUD detection for offline UI testing","network,playwright-utils,ui,har",knowledge/network-recorder.md
+auth-session,Auth Session,"Token persistence, multi-user, API and browser authentication","auth,playwright-utils,api,backend,jwt,token",knowledge/auth-session.md
+intercept-network-call,Intercept Network Call,"Network spy/stub, JSON parsing for UI tests","network,playwright-utils,ui",knowledge/intercept-network-call.md
+recurse,Recurse Polling,"Async polling for API responses, background jobs, eventual consistency","polling,playwright-utils,api,backend,async,eventual-consistency",knowledge/recurse.md
+log,Log Utility,"Report logging, structured output for API and UI tests","logging,playwright-utils,api,ui",knowledge/log.md
+file-utils,File Utilities,"CSV/XLSX/PDF/ZIP validation for API exports and UI downloads","files,playwright-utils,api,backend,ui",knowledge/file-utils.md
+burn-in,Burn-in Runner,"Smart test selection, git diff for CI optimization","ci,playwright-utils",knowledge/burn-in.md
+network-error-monitor,Network Error Monitor,"HTTP 4xx/5xx detection for UI tests","monitoring,playwright-utils,ui",knowledge/network-error-monitor.md
+fixtures-composition,Fixtures Composition,"mergeTests composition patterns for combining utilities","fixtures,playwright-utils",knowledge/fixtures-composition.md
+api-testing-patterns,API Testing Patterns,"Pure API test patterns without browser: service testing, microservices, GraphQL","api,backend,service-testing,api-testing,microservices,graphql,no-browser",knowledge/api-testing-patterns.md
+adr-quality-readiness-checklist,ADR Quality Readiness Checklist,"8-category 29-criteria framework for ADR testability and NFR assessment","nfr,testability,adr,quality,assessment,checklist",knowledge/adr-quality-readiness-checklist.md
+adaptation-rules,Pattern Adaptation Rules,"Language-agnostic pattern translation rules for test generation across any programming language","language-agnostic,adaptation,patterns,code-generation,multi-language",knowledge/adaptation-rules.md
+language-characteristics,Language Characteristics Model,"Defines WHAT to detect for any language: typing, async model, test structure, cleanup idioms, workspace detection","language-agnostic,detection,characteristics,inference,monorepo,workspace",language-characteristics.yaml
+language-profile-schema,Language Profile Schema,"Runtime profile structure with examples for TypeScript, Python, Go, Java, C#, Ruby, Rust - generated by language-inference","language-agnostic,profile,schema,runtime,multi-language",language-profile.schema.yaml
+workspace-profile-schema,Workspace Profile Schema,"Monorepo/workspace-level profile structure for multi-package projects with shared test infrastructure","monorepo,workspace,multi-package,shared-infrastructure,language-agnostic",workspace-profile.schema.yaml
+workspace-validation,Workspace Validation Guide,"Validation scenarios and integration tests for monorepo support including pnpm, Go, Cargo, Nx workspaces","monorepo,workspace,validation,testing,integration",knowledge/workspace-validation.md

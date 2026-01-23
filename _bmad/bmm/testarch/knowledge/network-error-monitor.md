@@ -1,34 +1,5 @@
 # Network Error Monitor
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL test frameworks that can monitor network traffic.**
-
-The network error detection principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] network error detection [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] HTTP response monitoring [CURRENT_YEAR]"
-```
-
-**Framework-specific network error monitoring:**
-| Framework | Response Monitoring | Error Detection | Artifact Capture |
-|-----------|-------------------|-----------------|------------------|
-| Playwright | `page.on('response')` | Status code check | JSON/trace |
-| Cypress | `cy.intercept()` | Callback/alias | Screenshots |
-| Selenium | WebDriver logs | Custom listener | Log files |
-| Puppeteer | `page.on('response')` | Status check | Custom |
-| WebdriverIO | `browser.mock()` | Response handler | Reporter |
-
-**Universal network monitoring principles (ALL frameworks):**
-
-- Fail tests on unexpected 4xx/5xx errors (even if UI passes)
-- Allow opt-out for tests expecting errors (validation tests)
-- Deduplicate repeated errors by pattern
-- Generate structured error reports for debugging
-
 ## Principle
 
 Automatically detect and fail tests when HTTP 4xx/5xx errors occur during execution. Act like Sentry for tests - catch silent backend failures even when UI passes assertions.
@@ -106,13 +77,17 @@ test('should load dashboard', async ({ page }) => {
 import { test } from '@seontechnologies/playwright-utils/network-error-monitor/fixtures';
 
 // Opt-out with annotation
-test('should show error on invalid input', { annotation: [{ type: 'skipNetworkMonitoring' }] }, async ({ page }) => {
-  await page.goto('/form');
-  await page.click('#submit'); // Triggers 400 error
+test(
+  'should show error on invalid input',
+  { annotation: [{ type: 'skipNetworkMonitoring' }] },
+  async ({ page }) => {
+    await page.goto('/form');
+    await page.click('#submit'); // Triggers 400 error
 
-  // Monitoring disabled - test won't fail on 400
-  await expect(page.getByText('Invalid input')).toBeVisible();
-});
+    // Monitoring disabled - test won't fail on 400
+    await expect(page.getByText('Invalid input')).toBeVisible();
+  }
+);
 
 // Or opt-out entire describe block
 test.describe('error handling', { annotation: [{ type: 'skipNetworkMonitoring' }] }, () => {
@@ -173,7 +148,7 @@ export const test = base.extend(
       /idv\/session-templates\/list/, // IDV service returns 404 when not configured
       /sentry\.io\/api/, // External Sentry errors should not fail tests
     ],
-  }),
+  })
 );
 ```
 
@@ -186,7 +161,7 @@ import { createNetworkErrorMonitorFixture } from '@seontechnologies/playwright-u
 const networkErrorMonitor = base.extend(
   createNetworkErrorMonitorFixture({
     excludePatterns: [/analytics\.google\.com/, /cdn\.example\.com/],
-  }),
+  })
 );
 
 export const test = mergeTests(authFixture, networkErrorMonitor);
@@ -206,7 +181,7 @@ const networkErrorMonitor = base.extend(
   createNetworkErrorMonitorFixture({
     excludePatterns: [], // Required when using maxTestsPerError
     maxTestsPerError: 1, // Only first test fails per error pattern, rest just log
-  }),
+  })
 );
 ```
 
@@ -279,7 +254,7 @@ import { test as networkErrorMonitorFixture } from '@seontechnologies/playwright
 
 export const test = mergeTests(
   authFixture,
-  networkErrorMonitorFixture,
+  networkErrorMonitorFixture
   // Add other fixtures
 );
 

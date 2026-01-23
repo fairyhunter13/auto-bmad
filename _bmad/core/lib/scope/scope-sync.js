@@ -35,16 +35,6 @@ class ScopeSync {
   }
 
   /**
-   * Set the project root directory
-   * @param {string} projectRoot - The project root path
-   */
-  setProjectRoot(projectRoot) {
-    this.projectRoot = projectRoot;
-    this.outputPath = path.join(projectRoot, this.outputBase);
-    this.sharedPath = path.join(this.outputPath, '_shared');
-  }
-
-  /**
    * Compute file hash for change detection
    * @param {string} filePath - Path to file
    * @returns {Promise<string>} MD5 hash
@@ -472,60 +462,6 @@ class ScopeSync {
       promotedFiles: Object.keys(meta.promotedFiles),
       pulledFiles: Object.keys(meta.pulledFiles),
     };
-  }
-
-  /**
-   * Resolve a sync conflict
-   * @param {object} conflict - Conflict object
-   * @param {string} resolution - Resolution strategy (keep-local, keep-shared, merge)
-   * @returns {Promise<object>} Resolution result
-   */
-  async resolveConflict(conflict, resolution) {
-    const result = { success: false, action: null };
-
-    try {
-      switch (resolution) {
-        case 'keep-local': {
-          // Keep local file, do nothing
-          result.action = 'kept-local';
-          result.success = true;
-          break;
-        }
-
-        case 'keep-shared': {
-          // Overwrite with shared
-          await fs.copy(conflict.shared || conflict.source, conflict.local || conflict.target, {
-            overwrite: true,
-          });
-          result.action = 'kept-shared';
-          result.success = true;
-          break;
-        }
-
-        case 'backup-and-update': {
-          // Backup local, then update
-          const backupPath = `${conflict.local || conflict.target}.backup.${Date.now()}`;
-          await fs.copy(conflict.local || conflict.target, backupPath);
-          await fs.copy(conflict.shared || conflict.source, conflict.local || conflict.target, {
-            overwrite: true,
-          });
-          result.action = 'backed-up-and-updated';
-          result.backupPath = backupPath;
-          result.success = true;
-          break;
-        }
-
-        default: {
-          result.success = false;
-          result.error = `Unknown resolution: ${resolution}`;
-        }
-      }
-    } catch (error) {
-      result.success = false;
-      result.error = error.message;
-    }
-
-    return result;
   }
 }
 

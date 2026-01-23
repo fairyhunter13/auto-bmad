@@ -1,35 +1,5 @@
 # Burn-in Test Runner
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL test frameworks that support selective test execution.**
-
-The burn-in testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] git diff test selection [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] selective test execution [CURRENT_YEAR]"
-```
-
-**Framework-specific changed file test selection:**
-| Framework | Native Support | Third-Party | Custom |
-|-----------|---------------|-------------|--------|
-| Playwright | `--only-changed` | Custom burn-in | Git diff scripts |
-| Cypress | - | `cypress-select-tests` | Git diff scripts |
-| Jest | `--onlyChanged` | `jest-changed-files` | Git diff scripts |
-| pytest | - | `pytest-picked` | Git diff scripts |
-| RSpec | - | `rspec-changed-files` | Git diff scripts |
-| Go test | - | Custom | `git diff` + filtering |
-
-**Universal burn-in principles (ALL frameworks):**
-
-- Filter out irrelevant changes (configs, types, docs)
-- Run affected tests multiple times (N iterations)
-- Control test volume with percentage-based execution
-- Fail fast on flakiness before merging
-
 ## Principle
 
 Use smart test selection with git diff analysis to run only affected tests. Filter out irrelevant changes (configs, types, docs) and control test volume with percentage-based execution. Reduce unnecessary CI runs while maintaining reliability.

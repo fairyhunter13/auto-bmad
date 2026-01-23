@@ -1,31 +1,5 @@
 # Data Factories and API-First Setup
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The principle of "factory functions with overrides + API-first setup" is universal. The code examples use TypeScript with `@faker-js/faker` as reference implementations.
-
-**Before generating factory code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_LANGUAGE] test data factory library [CURRENT_YEAR]"
-Search: "[YOUR_LANGUAGE] faker library [CURRENT_YEAR]"
-```
-
-**Language-specific faker libraries:**
-
-| Language   | Faker Library     | Install                               |
-| ---------- | ----------------- | ------------------------------------- |
-| JavaScript | `@faker-js/faker` | `npm install @faker-js/faker`         |
-| Python     | `faker`           | `pip install faker`                   |
-| Go         | `gofakeit`        | `go get github.com/brianvoe/gofakeit` |
-| Java       | `javafaker`       | Maven/Gradle dependency               |
-| Rust       | `fake`            | `cargo add fake`                      |
-| C#         | `Bogus`           | `dotnet add package Bogus`            |
-| Ruby       | `faker`           | `gem install faker`                   |
-| PHP        | `fakerphp/faker`  | `composer require fakerphp/faker`     |
-
 ## Principle
 
 Prefer factory functions that accept overrides and return complete objects (`createUser(overrides)`). Seed test state through APIs, tasks, or direct DB helpers before visiting the UI—never via slow UI interactions. UI is for validation only, not setup.

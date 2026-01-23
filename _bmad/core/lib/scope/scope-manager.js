@@ -321,7 +321,7 @@ class ScopeManager {
       }
 
       // Check if other scopes depend on this one
-      const dependentScopes = this.findDependentScopesSync(scopeId, config.scopes);
+      const dependentScopes = this.findDependentScopes(scopeId, config.scopes);
       if (dependentScopes.length > 0 && !options.force) {
         throw new Error(
           `Cannot remove scope '${scopeId}'. The following scopes depend on it: ${dependentScopes.join(', ')}. Use force option to remove anyway.`,
@@ -378,18 +378,6 @@ class ScopeManager {
   }
 
   /**
-   * Resolve a path template with scope variable
-   * @param {string} template - Path template (e.g., "{output_folder}/{scope}/artifacts")
-   * @param {string} scopeId - The scope ID
-   * @returns {string} Resolved path
-   */
-  resolvePath(template, scopeId) {
-    return template
-      .replaceAll('{scope}', scopeId)
-      .replaceAll('{output_folder}', this._config?.settings?.default_output_base || '_bmad-output');
-  }
-
-  /**
    * Get dependency tree for a scope
    * @param {string} scopeId - The scope ID
    * @returns {Promise<object>} Dependency tree
@@ -406,7 +394,7 @@ class ScopeManager {
       const tree = {
         scope: scopeId,
         dependencies: [],
-        dependents: this.findDependentScopesSync(scopeId, config.scopes),
+        dependents: this.findDependentScopes(scopeId, config.scopes),
       };
 
       // Build dependency tree recursively
@@ -432,34 +420,10 @@ class ScopeManager {
   /**
    * Find scopes that depend on a given scope
    * @param {string} scopeId - The scope ID
-   * @param {object} allScopes - All scopes object (optional, will load if not provided)
-   * @returns {Promise<string[]>|string[]} Array of dependent scope IDs
-   */
-  async findDependentScopes(scopeId, allScopes = null) {
-    // If allScopes not provided, load from config
-    if (!allScopes) {
-      const config = await this.loadConfig();
-      allScopes = config.scopes || {};
-    }
-
-    const dependents = [];
-
-    for (const [sid, scope] of Object.entries(allScopes)) {
-      if (scope.dependencies && scope.dependencies.includes(scopeId)) {
-        dependents.push(sid);
-      }
-    }
-
-    return dependents;
-  }
-
-  /**
-   * Find scopes that depend on a given scope (synchronous version)
-   * @param {string} scopeId - The scope ID
-   * @param {object} allScopes - All scopes object (required)
+   * @param {object} allScopes - All scopes object
    * @returns {string[]} Array of dependent scope IDs
    */
-  findDependentScopesSync(scopeId, allScopes) {
+  findDependentScopes(scopeId, allScopes) {
     // Guard against null/undefined allScopes parameter
     if (!allScopes || typeof allScopes !== 'object') {
       return [];
@@ -492,59 +456,6 @@ class ScopeManager {
    */
   async activateScope(scopeId) {
     return this.updateScope(scopeId, { status: 'active' });
-  }
-
-  /**
-   * Update scope activity timestamp
-   * @param {string} scopeId - The scope ID
-   * @returns {Promise<object>} Updated scope object
-   */
-  async touchScope(scopeId) {
-    return this.updateScope(scopeId, {
-      _meta: { last_activity: new Date().toISOString() },
-    });
-  }
-
-  /**
-   * Increment artifact count for a scope
-   * @param {string} scopeId - The scope ID
-   * @param {number} increment - Amount to increment (default: 1)
-   * @returns {Promise<object>} Updated scope object
-   */
-  async incrementArtifactCount(scopeId, increment = 1) {
-    const scope = await this.getScope(scopeId);
-    if (!scope) {
-      throw new Error(`Scope '${scopeId}' does not exist`);
-    }
-
-    const currentCount = scope._meta?.artifact_count || 0;
-    return this.updateScope(scopeId, {
-      _meta: { artifact_count: currentCount + increment },
-    });
-  }
-
-  /**
-   * Get scope settings
-   * @returns {Promise<object>} Settings object
-   */
-  async getSettings() {
-    const config = await this.loadConfig();
-    return config.settings || {};
-  }
-
-  /**
-   * Update scope settings
-   * @param {object} settings - New settings
-   * @returns {Promise<object>} Updated settings
-   */
-  async updateSettings(settings) {
-    const config = await this.loadConfig();
-    config.settings = {
-      ...config.settings,
-      ...settings,
-    };
-    await this.saveConfig(config);
-    return config.settings;
   }
 }
 

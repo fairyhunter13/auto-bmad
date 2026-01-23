@@ -1,46 +1,4 @@
-# Contract Testing Essentials
-
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The contract testing principles below are universal. Code examples use TypeScript/Pact as reference implementations.
-
-**Before generating code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_LANGUAGE] Pact contract testing [CURRENT_YEAR]"
-Search: "[YOUR_LANGUAGE] consumer driven contracts [CURRENT_YEAR]"
-```
-
-**Pact implementations by language:**
-| Language | Pact Library | Test Integration | Notes |
-|----------|--------------|------------------|-------|
-| JavaScript/TS | @pact-foundation/pact | Jest, Mocha, Vitest | PactV3 recommended |
-| Python | pact-python | pytest, unittest | Python 3.8+ |
-| Java/Kotlin | pact-jvm | JUnit 4/5, Spock | au.com.dius.pact |
-| Go | pact-go | testing | Uses Pact FFI |
-| .NET/C# | PactNet | xUnit, NUnit | PactNet 4.x |
-| Ruby | pact-ruby | RSpec, Minitest | Original implementation |
-| PHP | pact-php | PHPUnit | Community maintained |
-| Rust | pact-rust | Built-in test | Pact FFI based |
-
-**Alternative contract testing tools:**
-| Tool | Type | Best For |
-|------|------|----------|
-| Pact | Consumer-driven | Microservices, REST APIs |
-| Spring Cloud Contract | Provider-driven | Spring Boot services |
-| Specmatic | OpenAPI-based | API-first development |
-| Dredd | API Blueprint | Documentation-driven |
-| Schemathesis | OpenAPI/GraphQL | Property-based testing |
-
-**Universal contract testing principles (ALL languages):**
-
-- Consumer defines expectations, provider verifies
-- Store contracts in a broker (Pactflow or self-hosted)
-- Version contracts semantically with git SHA
-- Run `can-i-deploy` before production deployments
-- Test resilience: timeouts, retries, error payloads
+# Contract Testing Essentials (Pact)
 
 ## Principle
 

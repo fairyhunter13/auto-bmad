@@ -1,34 +1,5 @@
 # Probability and Impact Scale
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages, frameworks, and project types.**
-
-The risk scoring principles below are universal. Code examples use TypeScript as reference implementations.
-
-**Before generating code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_LANGUAGE] risk matrix implementation [CURRENT_YEAR]"
-Search: "risk-based testing prioritization [CURRENT_YEAR]"
-```
-
-**The 3×3 risk matrix is universal (ALL projects):**
-| Score | Probability × Impact | Classification | Action |
-|-------|---------------------|----------------|--------|
-| 1-3 | Low risk | DOCUMENT | Document risk, no immediate action |
-| 4-5 | Medium risk | MONITOR | Track risk, increase test coverage |
-| 6-8 | High risk | MITIGATE | Immediate action, comprehensive testing |
-| 9 | Critical risk | BLOCK | Stop deployment until resolved |
-
-**Risk scoring applies to ALL tech stacks:**
-
-- Revenue impact (payment, subscriptions, billing)
-- Security exposure (auth, data leaks, injection)
-- Regulatory compliance (GDPR, PCI-DSS, SOC2)
-- Data integrity (CRUD operations, migrations)
-- User impact (core journeys, frequent features)
-
 ## Principle
 
 Risk scoring uses a **probability × impact** matrix (1-9 scale) to prioritize testing efforts. Higher scores (6-9) demand immediate action; lower scores (1-3) require documentation only. This systematic approach ensures testing resources focus on the highest-value risks.

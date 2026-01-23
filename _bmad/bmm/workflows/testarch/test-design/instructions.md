@@ -3,7 +3,7 @@
 # Test Design and Risk Assessment
 
 **Workflow ID**: `_bmad/bmm/testarch/test-design`
-**Version**: 5.0 (Language Agnostic)
+**Version**: 4.0 (BMad v6)
 
 ---
 
@@ -14,64 +14,43 @@ Plans comprehensive test coverage strategy with risk assessment, priority classi
 - **System-Level Mode (Phase 3)**: Testability review of architecture before solutioning gate check
 - **Epic-Level Mode (Phase 4)**: Per-epic test planning with risk assessment (current behavior)
 
-**Language Agnostic**: This workflow supports ANY programming language and test framework. Test level recommendations and tool suggestions adapt to the detected language.
-
 The workflow auto-detects which mode to use based on project phase.
 
 ---
 
-## Step 0: Detect Project Environment (MANDATORY)
+## Phase 0: Language Profile Loading (NEW - Language-Agnostic)
 
-**CRITICAL**: Before creating ANY test design, you MUST detect the project's language and technology stack.
+**Critical:** Load language profile for language-aware recommendations.
 
 ### Actions
 
-1. **Detect Language from Codebase**
-
-   Scan project root for language indicators:
-   - `package.json` → JavaScript/TypeScript (Node.js)
-   - `requirements.txt` / `pyproject.toml` → Python
-   - `go.mod` → Go
-   - `pom.xml` / `build.gradle` → Java
-   - `Cargo.toml` → Rust
-   - `*.csproj` / `*.sln` → C# (.NET)
-   - `Gemfile` → Ruby
-   - `composer.json` → PHP
-
-2. **Detect Technology Stack**
-
-   Identify frameworks, databases, deployment targets:
-   - **Web frameworks**: React, Vue, Django, Spring, Rails, Laravel, etc.
-   - **API frameworks**: Express, FastAPI, Gin, Spring Boot, etc.
-   - **Databases**: PostgreSQL, MySQL, MongoDB, Redis, etc.
-   - **Deployment**: Docker, Kubernetes, AWS, GCP, Azure, etc.
-
-3. **Fetch Latest Testing Tool Landscape (MANDATORY)**
-
-   **CRITICAL**: Before recommending test tools, fetch current options:
+1. **Check for Existing Language Profile**
 
    ```
-   Search: "[DETECTED_LANGUAGE] E2E testing frameworks [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] API testing tools [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] unit testing frameworks [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] performance testing tools [CURRENT_YEAR]"
+   IF exists {project-root}/_bmad/testarch/language-profile.yaml:
+     READ profile
+     USE for framework recommendations
+   ELSE:
+     NOTE: Language inference not yet run
+     RECOMMEND: Run *language-inference if generating test code later
    ```
 
-4. **Store Detection Results**
+2. **Cache Language Context**
+
+   If profile exists, cache for later use in framework recommendations:
 
    ```yaml
-   detected:
-     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
-     web_framework: '[e.g., React, Django, Spring]'
-     api_framework: '[e.g., Express, FastAPI, Gin]'
-     database: '[e.g., PostgreSQL, MongoDB]'
-     deployment: '[e.g., Docker, Kubernetes, AWS]'
-     recommended_e2e_tool: '[e.g., Playwright, Cypress, Selenium]'
-     recommended_api_tool: '[e.g., Playwright API, requests, httptest]'
-     recommended_unit_tool: '[e.g., Jest, pytest, go test, JUnit]'
+   language:
+     inferred_name: # e.g., "TypeScript", "Python", "Go"
+   test_framework:
+     detected: # e.g., "playwright", "pytest", "go-test"
+     run_command: # e.g., "npx playwright test"
    ```
 
-**Halt Condition**: If language cannot be detected, ask user: "What is the project's primary programming language and technology stack?"
+   This enables language-appropriate:
+   - Test framework recommendations
+   - Tool suggestions
+   - CI configuration templates
 
 ---
 
@@ -246,36 +225,39 @@ TEA test-design workflow supports TWO modes, detected automatically:
 
    Score each ASR using risk matrix (probability × impact).
 
-3. **Define Test Levels Strategy** (Language-Agnostic)
+3. **Define Test Levels Strategy (Language-Aware)**
 
-   Based on architecture (mobile, web, API, microservices, monolith):
-   - Recommend unit/integration/E2E split (e.g., 70/20/10 for API-heavy, 40/30/30 for UI-heavy)
-   - Identify test environment needs (local, staging, ephemeral, production-like)
-   - **Fetch tool recommendations for detected language:**
+   Based on architecture (mobile, web, API, microservices, monolith) AND language profile:
 
-   ```
-   Search: "[DETECTED_LANGUAGE] E2E testing frameworks comparison [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] performance testing tools [CURRENT_YEAR]"
-   ```
+   **Test Level Split Recommendations:**
+   - API-heavy backends: 70/20/10 (unit/integration/E2E)
+   - UI-heavy frontends: 40/30/30 (unit/component/E2E)
+   - Full-stack applications: 50/30/20 (unit/integration/E2E)
 
-   **Tool landscape by language (fetch latest before recommending):**
+   **Framework Recommendations by Language:**
 
-   | Language   | E2E Tools                        | API Tools                 | Unit Tools       | Perf Tools      |
-   | ---------- | -------------------------------- | ------------------------- | ---------------- | --------------- |
-   | JavaScript | Playwright, Cypress              | Playwright API, supertest | Jest, Vitest     | k6, Artillery   |
-   | Python     | Playwright, Selenium             | requests, httpx, pytest   | pytest, unittest | Locust, k6      |
-   | Go         | Playwright, Rod                  | net/http/httptest         | testing, testify | k6, vegeta      |
-   | Java       | Playwright, Selenium             | RestAssured               | JUnit, TestNG    | JMeter, Gatling |
-   | C#         | Playwright, Selenium             | RestSharp, HttpClient     | xUnit, NUnit     | NBomber, k6     |
-   | Ruby       | Playwright, Capybara             | HTTParty, Faraday         | RSpec, Minitest  | k6, gatling     |
-   | Mobile     | Playwright (web), Maestro, Detox | -                         | -                | -               |
+   | Language          | Unit Tests   | Integration/API   | E2E (Web)            | E2E (Mobile)     | Performance     |
+   | ----------------- | ------------ | ----------------- | -------------------- | ---------------- | --------------- |
+   | **TypeScript/JS** | Vitest, Jest | Playwright API    | Playwright           | Detox, Appium    | k6, Artillery   |
+   | **Python**        | pytest       | pytest + requests | pytest-playwright    | Appium           | Locust, k6      |
+   | **Go**            | go-test      | go-test + testify | rod, chromedp        | gomobile         | k6, hey         |
+   | **Rust**          | cargo-test   | cargo-test        | headless-chrome      | --               | criterion       |
+   | **Java/Kotlin**   | JUnit 5      | RestAssured       | Selenium, Playwright | Espresso, Appium | Gatling, JMeter |
+   | **C#/.NET**       | xUnit, NUnit | RestSharp         | Playwright           | Xamarin.UITest   | NBomber         |
 
-4. **Assess NFR Testing Approach** (Language-Agnostic)
+   **If language profile exists:** Use `language_profile.test_framework.detected` as primary recommendation.
 
-   For each NFR category (use tools appropriate for detected language):
-   - **Security**: Auth/authz tests, OWASP validation, secret handling (E2E + security tools)
-   - **Performance**: Load/stress/spike testing with detected perf tool, SLO/SLA thresholds
-   - **Reliability**: Error handling, retries, circuit breakers, health checks (API + E2E tests)
+   **Test Environment Needs:**
+   - Local: Docker Compose, test containers
+   - Staging: Ephemeral environments, feature branches
+   - Production-like: Scaled infrastructure, realistic data
+
+4. **Assess NFR Testing Approach**
+
+   For each NFR category:
+   - **Security**: Auth/authz tests, OWASP validation, secret handling (Playwright E2E + security tools)
+   - **Performance**: Load/stress/spike testing with k6, SLO/SLA thresholds
+   - **Reliability**: Error handling, retries, circuit breakers, health checks (Playwright + API tests)
    - **Maintainability**: Coverage targets, code quality gates, observability validation
 
 5. **Flag Testability Concerns**

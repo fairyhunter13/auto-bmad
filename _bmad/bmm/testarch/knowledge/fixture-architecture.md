@@ -1,42 +1,70 @@
 # Fixture Architecture Playbook
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The principle of "pure functions → framework fixtures → composition" is universal. The code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating fixture code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] fixture patterns [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] test setup and teardown [CURRENT_YEAR]"
-Search: "[YOUR_LANGUAGE] test composition patterns [CURRENT_YEAR]"
-```
-
-**Framework-specific fixture mechanisms:**
-
-| Framework  | Fixture Pattern          | Composition          |
-| ---------- | ------------------------ | -------------------- |
-| Playwright | `test.extend()`          | `mergeTests()`       |
-| pytest     | `@pytest.fixture`        | fixture dependencies |
-| Go testing | `t.Cleanup()`, TestMain  | test helpers         |
-| JUnit 5    | `@BeforeEach/@AfterEach` | `@ExtendWith`        |
-| RSpec      | `let`, `before`, `after` | shared examples      |
-| xUnit      | `IClassFixture<T>`       | composition          |
-
 ## Principle
 
-Build test helpers as pure functions first, then wrap them in framework-specific fixtures. Compose capabilities using framework-appropriate composition (e.g., `mergeTests` in Playwright, fixture dependencies in pytest) instead of inheritance. Each fixture should solve one isolated concern (auth, API, logs, network).
+Build test helpers as pure functions first, then wrap them in framework-specific fixtures. Compose capabilities using `mergeTests` (Playwright) or layered commands (Cypress) instead of inheritance. Each fixture should solve one isolated concern (auth, API, logs, network).
 
 ## Rationale
 
-Traditional Page Object Models create tight coupling through inheritance chains. When base classes change, all descendants break. Pure functions with fixture wrappers provide:
+Traditional Page Object Models create tight coupling through inheritance chains (`BasePage → LoginPage → AdminPage`). When base classes change, all descendants break. Pure functions with fixture wrappers provide:
 
 - **Testability**: Pure functions run in unit tests without framework overhead
-- **Composability**: Mix capabilities freely via framework composition, no inheritance constraints
-- **Reusability**: Export fixtures for cross-project sharing
+- **Composability**: Mix capabilities freely via `mergeTests`, no inheritance constraints
+- **Reusability**: Export fixtures via package subpaths for cross-project sharing
 - **Maintainability**: One concern per fixture = clear responsibility boundaries
+
+---
+
+## Language-Agnostic Abstract Pattern
+
+This pattern applies to ANY programming language. See `adaptation-rules.md` for language-specific translations.
+
+### Abstract: Pure Function → Fixture → Composition
+
+```pseudocode
+// STEP 1: Pure Function (explicit dependencies, no framework coupling)
+FUNCTION make_api_request(context, method, url, data, headers):
+    response = context.HTTP_CALL(method, url, data, headers)
+    IF NOT response.is_ok():
+        THROW HttpError(response.status, response.body)
+    RETURN response.parse_json()
+
+// STEP 2: Fixture Wrapper (injects framework context)
+FIXTURE api_request:
+    context = GET_FRAMEWORK_CONTEXT()
+    PROVIDE make_api_request.bind(context)
+    ON_CLEANUP:
+        // Optional cleanup
+
+// STEP 3: Composition (combine multiple fixtures)
+test_fixtures = MERGE(
+    base_fixtures,
+    api_request_fixture,
+    auth_fixture,
+    network_fixture
+)
+
+// STEP 4: Usage in tests
+TEST "user can fetch data" WITH (api_request, auth):
+    auth.login_as("user@example.com")
+    data = api_request.GET("/api/data")
+    ASSERT data.count > 0
+```
+
+### Adaptation by Language
+
+| Language              | Fixture Mechanism               | Composition                |
+| --------------------- | ------------------------------- | -------------------------- |
+| TypeScript/Playwright | `base.extend<T>({...})`         | `mergeTests()`             |
+| Python/pytest         | `@pytest.fixture` decorator     | Fixture dependencies       |
+| Go                    | Helper function + `t.Cleanup()` | Manual composition         |
+| Java/JUnit            | `@BeforeEach` + instance fields | Inheritance or composition |
+| Rust                  | Test helper functions           | Module imports             |
+| Ruby/RSpec            | `let` blocks + `before` hooks   | Shared examples            |
+
+**TEA will automatically adapt this pattern to your project's language profile.**
+
+---
 
 ## Pattern Examples
 

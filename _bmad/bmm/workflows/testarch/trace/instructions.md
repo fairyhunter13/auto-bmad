@@ -3,7 +3,7 @@
 **Workflow:** `testarch-trace`
 **Purpose:** Generate requirements-to-tests traceability matrix, analyze coverage gaps, and make quality gate decisions (PASS/CONCERNS/FAIL/WAIVED)
 **Agent:** Test Architect (TEA)
-**Format:** Pure Markdown v5.0 (Language Agnostic)
+**Format:** Pure Markdown v4.0 (no XML blocks)
 
 ---
 
@@ -15,8 +15,6 @@ This workflow operates in two sequential phases to validate test coverage and de
 
 **PHASE 2 - QUALITY GATE DECISION:** Use traceability results combined with test execution evidence to make gate decisions (PASS/CONCERNS/FAIL/WAIVED) that determine deployment readiness.
 
-**Language Agnostic**: This workflow supports ANY programming language and test framework. Test file discovery and coverage mapping adapt to the detected language.
-
 **Key Capabilities:**
 
 - Map acceptance criteria to specific test cases across all levels (E2E, API, Component, Unit)
@@ -26,58 +24,6 @@ This workflow operates in two sequential phases to validate test coverage and de
 - Generate gate decisions with evidence and rationale
 - Support waivers for business-approved exceptions
 - Update workflow status and notify stakeholders
-
----
-
-## Step 0: Detect Project Environment (MANDATORY)
-
-**CRITICAL**: Before tracing tests, you MUST detect the project's language and test framework.
-
-### Actions
-
-1. **Detect Language from Codebase**
-
-   Scan project root for language indicators:
-   - `package.json` → JavaScript/TypeScript (Node.js)
-   - `requirements.txt` / `pyproject.toml` → Python
-   - `go.mod` → Go
-   - `pom.xml` / `build.gradle` → Java
-   - `Cargo.toml` → Rust
-   - `*.csproj` / `*.sln` → C# (.NET)
-   - `Gemfile` → Ruby
-   - `composer.json` → PHP
-
-2. **Detect Test Framework and File Patterns**
-
-   Based on language, identify test file patterns:
-   - **JavaScript/TypeScript**: `*.spec.ts`, `*.test.ts`, `*.spec.js`
-   - **Python**: `test_*.py`, `*_test.py`
-   - **Go**: `*_test.go`
-   - **Java**: `*Test.java`, `*Tests.java`
-   - **Rust**: Files with `mod tests`
-   - **C#**: `*Tests.cs`, `*Test.cs`
-   - **Ruby**: `*_spec.rb`
-   - **PHP**: `*Test.php`
-
-3. **Identify Test ID Conventions**
-
-   Different frameworks use different test ID patterns:
-   - Universal: `[P0]`, `[P1]`, `[P2]`, `[P3]` in test names
-   - BMad: `{story}-{level}-{seq}` (e.g., `1.3-E2E-001`)
-   - Framework-specific tags/annotations
-
-4. **Store Detection Results**
-
-   ```yaml
-   detected:
-     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
-     test_framework: '[e.g., Playwright, pytest, go test, JUnit]'
-     test_file_pattern: '[e.g., *.spec.ts, test_*.py, *_test.go]'
-     test_directory: '[e.g., tests/, test/, spec/]'
-     test_id_pattern: '[e.g., describe/test blocks, function names, annotations]'
-   ```
-
-**Halt Condition**: If language cannot be detected, ask user: "What programming language and test framework does this project use?"
 
 ---
 
@@ -98,7 +44,7 @@ This workflow operates in two sequential phases to validate test coverage and de
 - `test-design.md` (for risk assessment and priority context)
 - `nfr-assessment.md` (for release-level gates)
 - `tech-spec.md` (for technical implementation context)
-- Test framework configuration detected in Step 0
+- Test framework configuration (playwright.config.ts, jest.config.js, etc.)
 
 **Halt Conditions:**
 
@@ -120,28 +66,19 @@ This phase focuses on mapping requirements to tests, analyzing coverage, and ide
 
 **Actions:**
 
-1. **Verify Step 0 Detection Complete**
+1. Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:
+   - `test-priorities-matrix.md` - P0/P1/P2/P3 risk framework with automated priority calculation, risk-based mapping, tagging strategy (389 lines, 2 examples)
+   - `risk-governance.md` - Risk-based testing approach: 6 categories (TECH, SEC, PERF, DATA, BUS, OPS), automated scoring, gate decision engine, coverage traceability (625 lines, 4 examples)
+   - `probability-impact.md` - Risk scoring methodology: probability × impact matrix, automated classification, dynamic re-assessment, gate integration (604 lines, 4 examples)
+   - `test-quality.md` - Definition of Done for tests: deterministic, isolated with cleanup, explicit assertions, length/time limits (658 lines, 5 examples)
+   - `selective-testing.md` - Duplicate coverage patterns: tag-based, spec filters, diff-based selection, promotion rules (727 lines, 4 examples)
 
-   Ensure language and framework detection from Step 0 is available:
-   - Detected language and test framework
-   - Test file patterns for this framework
-   - Test ID conventions used
-
-2. **Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:**
-
-   **Core Patterns (universal principles):**
-   - `test-priorities-matrix.md` - P0/P1/P2/P3 risk framework
-   - `risk-governance.md` - Risk-based testing approach (6 categories)
-   - `probability-impact.md` - Risk scoring methodology
-   - `test-quality.md` - Definition of Done for tests
-   - `selective-testing.md` - Duplicate coverage patterns
-
-3. **Read story file (if provided):**
+2. Read story file (if provided):
    - Extract acceptance criteria
    - Identify story ID (e.g., 1.3)
    - Note any existing test design or priority information
 
-4. **Read related BMad artifacts (if available):**
+3. Read related BMad artifacts (if available):
    - `test-design.md` - Risk assessment and test priorities
    - `tech-spec.md` - Technical implementation details
    - `PRD.md` - Product requirements context
@@ -154,37 +91,24 @@ This phase focuses on mapping requirements to tests, analyzing coverage, and ide
 
 **Actions:**
 
-1. **Auto-discover test files** (using detected patterns from Step 0):
+1. Auto-discover test files related to the story:
    - Search for test IDs (e.g., `1.3-E2E-001`, `1.3-UNIT-005`)
-   - Search for test blocks mentioning feature name (framework-specific)
+   - Search for describe blocks mentioning feature name
    - Search for file paths matching feature directory
-   - Use `glob` with detected test file patterns from Step 0
+   - Use `glob` to find test files in `{test_dir}`
 
-   **Language-specific test discovery:**
-
-   | Language              | Test Discovery Pattern                               |
-   | --------------------- | ---------------------------------------------------- |
-   | JavaScript/TypeScript | `describe/test` blocks in `*.spec.ts`                |
-   | Python                | `test_*` functions or `Test*` classes in `test_*.py` |
-   | Go                    | `Test*` functions in `*_test.go`                     |
-   | Java                  | `@Test` annotated methods in `*Test.java`            |
-   | Rust                  | `#[test]` functions in `mod tests`                   |
-   | C#                    | `[Fact]`/`[Test]` methods in `*Tests.cs`             |
-   | Ruby                  | `it`/`describe` blocks in `*_spec.rb`                |
-   | PHP                   | `test*` methods in `*Test.php`                       |
-
-2. **Categorize tests by level:**
+2. Categorize tests by level:
    - **E2E Tests**: Full user journeys through UI
    - **API Tests**: HTTP contract and integration tests
    - **Component Tests**: UI component behavior in isolation
    - **Unit Tests**: Business logic and pure functions
 
-3. **Extract test metadata** (framework-specific):
+3. Extract test metadata:
    - Test ID (if present)
-   - Test blocks (describe/context/suite/class)
-   - Individual tests (it/test/func)
+   - Describe/context blocks
+   - It blocks (individual test cases)
    - Given-When-Then structure (if BDD)
-   - Assertions used (framework-specific)
+   - Assertions used
    - Priority markers (P0/P1/P2/P3)
 
 **Output:** Complete catalog of all tests for this feature
@@ -473,8 +397,8 @@ This phase uses traceability results to make a quality gate decision (PASS/CONCE
 
 ## Decision Criteria
 
-| Criterion         | Threshold | Actual   | Status  |
-| ----------------- | --------- | -------- | ------- |
+| Criterion         | Threshold | Actual   | Status |
+| ----------------- | --------- | -------- | ------ |
 | P0 Coverage       | ≥100%     | 100%     | ✅ PASS |
 | P1 Coverage       | ≥90%      | 88%      | ⚠️ FAIL |
 | Overall Coverage  | ≥80%      | 92%      | ✅ PASS |
@@ -896,8 +820,8 @@ Use selective testing principles from `selective-testing.md`:
 
 ## Coverage Summary
 
-| Priority  | Total Criteria | FULL Coverage | Coverage % | Status  |
-| --------- | -------------- | ------------- | ---------- | ------- |
+| Priority  | Total Criteria | FULL Coverage | Coverage % | Status |
+| --------- | -------------- | ------------- | ---------- | ------ |
 | P0        | 3              | 3             | 100%       | ✅ PASS |
 | P1        | 5              | 4             | 80%        | ⚠️ WARN |
 | P2        | 4              | 3             | 75%        | ✅ PASS |

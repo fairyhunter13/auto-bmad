@@ -1,37 +1,5 @@
 # Selective and Targeted Test Execution
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The selective testing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] test tagging [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] selective test execution [CURRENT_YEAR]"
-```
-
-**Framework-specific test selection mechanisms:**
-| Framework | Tag Syntax | Grep/Filter | Git Diff Selection |
-|-----------|------------|-------------|-------------------|
-| Playwright | `test('@tag ...')` | `--grep "@tag"` | Custom script |
-| Cypress | `{ tags: ['@tag'] }` | `@cypress/grep` | Custom script |
-| Jest | `test.only`, describe blocks | `--testNamePattern` | `jest --changedSince` |
-| Vitest | `test.only`, `@tag` | `--grep` | `--changed` |
-| pytest | `@pytest.mark.tag` | `-m "tag"` | `pytest-git-diff` |
-| RSpec | `focus: true`, tags | `--tag tag` | Custom script |
-| JUnit 5 | `@Tag("tag")` | `--include-tag` | Custom script |
-| Go test | subtests, build tags | `-run TestName` | Custom script |
-
-**Universal selective testing principles (ALL frameworks):**
-
-- Tag tests by priority (P0-P3) and execution stage (@smoke, @regression)
-- Run changed tests first for fast feedback (burn-in)
-- Use promotion rules: pre-commit → CI-PR → CI-merge → staging → production
-- Critical config changes trigger full test suite
-
 ## Principle
 
 Run only the tests you need, when you need them. Use tags/grep to slice suites by risk priority (not directory structure), filter by spec patterns or git diff to focus on impacted areas, and combine priority metadata (P0-P3) with change detection to optimize pre-commit vs. CI execution. Document the selection strategy clearly so teams understand when full regression is mandatory.

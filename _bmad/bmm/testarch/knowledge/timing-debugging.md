@@ -1,35 +1,5 @@
 # Timing Debugging and Race Condition Fixes
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The timing and race condition debugging principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] race condition debugging [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] deterministic wait patterns [CURRENT_YEAR]"
-```
-
-**Framework-specific deterministic wait patterns:**
-| Framework | Network Wait | Element Wait | State Change Wait |
-|-----------|--------------|--------------|-------------------|
-| Playwright | `waitForResponse()` | `waitFor({ state })` | `waitForFunction()` |
-| Cypress | `cy.wait('@alias')` | `cy.get().should()` | `cy.intercept()` |
-| Selenium | `ExpectedConditions` | `visibilityOf()` | Custom `FluentWait` |
-| WebdriverIO | `browser.waitUntil()` | `element.waitForDisplayed()` | `browser.waitForExist()` |
-| Puppeteer | `page.waitForResponse()` | `page.waitForSelector()` | `page.waitForFunction()` |
-| TestCafe | `t.expect().ok()` | `Selector().visible` | `ClientFunction` polling |
-
-**Universal timing principles (ALL frameworks):**
-
-- NEVER use hard waits (`sleep`, `waitForTimeout`, `pause`)
-- Intercept network BEFORE navigation (prevents race conditions)
-- Wait for observable events (responses, element states), not arbitrary time
-- Use network-first pattern: intercept → navigate → wait for response
-
 ## Principle
 
 Race conditions arise when tests make assumptions about asynchronous timing (network, animations, state updates). **Deterministic waiting** eliminates flakiness by explicitly waiting for observable events (network responses, element state changes) instead of arbitrary timeouts.

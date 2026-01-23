@@ -1,36 +1,5 @@
 # Risk Governance and Gatekeeping
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages, frameworks, and project types.**
-
-The risk governance principles below are universal. Code examples use TypeScript as reference implementations.
-
-**Before generating code for other languages, fetch current patterns:**
-
-```
-Search: "[YOUR_LANGUAGE] risk management automation [CURRENT_YEAR]"
-Search: "quality gate automation [CURRENT_YEAR]"
-```
-
-**Universal risk categories (ALL projects):**
-| Category | Code | Examples |
-|----------|------|----------|
-| Technical | TECH | Architecture fragility, tech debt |
-| Security | SEC | Vulnerabilities, auth issues |
-| Performance | PERF | Latency, throughput degradation |
-| Data | DATA | Integrity, corruption, loss |
-| Business | BUS | Logic errors, revenue impact |
-| Operations | OPS | Deployment, monitoring, recovery |
-
-**Risk classification thresholds (universal):**
-| Score | Classification | Action |
-|-------|---------------|--------|
-| 1-3 | ACCEPT | Document, no immediate action |
-| 4-5 | MONITOR | Track, add tests, review regularly |
-| 6-8 | MITIGATE | Immediate action, owner assigned |
-| 9 | BLOCK | Gate failure, fix before release |
-
 ## Principle
 
 Risk governance transforms subjective "should we ship?" debates into objective, data-driven decisions. By scoring risk (probability × impact), classifying by category (TECH, SEC, PERF, etc.), and tracking mitigation ownership, teams create transparent quality gates that balance speed with safety.

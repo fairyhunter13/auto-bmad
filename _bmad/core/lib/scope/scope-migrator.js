@@ -24,16 +24,6 @@ class ScopeMigrator {
   }
 
   /**
-   * Set the project root directory
-   * @param {string} projectRoot - The project root path
-   */
-  setProjectRoot(projectRoot) {
-    this.projectRoot = projectRoot;
-    this.bmadPath = path.join(projectRoot, '_bmad');
-    this.outputPath = path.join(projectRoot, this.outputBase);
-  }
-
-  /**
    * Check if migration is needed
    * Returns true if there are artifacts in non-scoped locations
    * @returns {Promise<boolean>} True if migration needed
@@ -317,6 +307,133 @@ class ScopeMigrator {
    * @param {number} fileCount - Number of migrated files
    * @returns {string} README content
    */
+  /**
+   * List available backups in output directory
+   * @returns {Promise<object[]>} Array of backup info objects
+   */
+  async listBackups() {
+    const backups = [];
+
+    try {
+      if (!(await fs.pathExists(this.outputPath))) {
+        return backups;
+      }
+
+      const entries = await fs.readdir(this.outputPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory() && entry.name.startsWith('_backup_')) {
+          const backupPath = path.join(this.outputPath, entry.name);
+          const stat = await fs.stat(backupPath);
+
+          // Parse backup name to extract info
+          // Format: _backup_migration_{timestamp} or _backup_{scopeId}_{timestamp}
+          const parts = entry.name.split('_');
+          let type = 'unknown';
+          let scopeId = null;
+          let timestamp = null;
+
+          if (parts[1] === 'backup' && parts[2] === 'migration') {
+            type = 'migration';
+            timestamp = parseInt(parts[3], 10);
+          } else if (parts[1] === 'backup') {
+            type = 'scope-removal';
+            scopeId = parts.slice(2, -1).join('_');
+            timestamp = parseInt(parts.at(-1), 10);
+          }
+
+          // Get contents summary
+          const contents = await fs.readdir(backupPath);
+
+          backups.push({
+            name: entry.name,
+            path: backupPath,
+            type,
+            scopeId,
+            timestamp,
+            created: stat.mtime,
+            createdAt: timestamp ? new Date(timestamp).toISOString() : stat.mtime.toISOString(),
+            contents,
+          });
+        }
+      }
+
+      // Sort by timestamp descending (newest first)
+      backups.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    } catch (error) {
+      throw new Error(`Failed to list backups: ${error.message}`, { cause: error });
+    }
+
+    return backups;
+  }
+
+  /**
+   * Rollback from a backup, restoring files to their original locations
+   * @param {string} backupPath - Path to the backup directory
+   * @param {object} options - Rollback options
+   * @returns {Promise<object>} Rollback result
+   */
+  async rollback(backupPath, options = {}) {
+    const result = {
+      success: false,
+      restored: [],
+      errors: [],
+      backupRemoved: false,
+    };
+
+    try {
+      if (!(await fs.pathExists(backupPath))) {
+        throw new Error(`Backup not found at: ${backupPath}`);
+      }
+
+      // Read backup contents
+      let entries;
+      try {
+        entries = await fs.readdir(backupPath, { withFileTypes: true });
+      } catch (readError) {
+        throw new Error(`Failed to read backup directory: ${readError.message}`, { cause: readError });
+      }
+
+      // Restore each item from backup
+      for (const entry of entries) {
+        const sourcePath = path.join(backupPath, entry.name);
+        const targetPath = path.join(this.outputPath, entry.name);
+
+        try {
+          // Handle existing files/directories
+          if (await fs.pathExists(targetPath)) {
+            if (options.force) {
+              await fs.remove(targetPath);
+            } else {
+              result.errors.push(`Skipped ${entry.name}: already exists (use --force to overwrite)`);
+              continue;
+            }
+          }
+
+          // Restore from backup
+          await fs.copy(sourcePath, targetPath);
+          result.restored.push(entry.name);
+        } catch (restoreError) {
+          result.errors.push(`Failed to restore ${entry.name}: ${restoreError.message}`);
+        }
+      }
+
+      // Remove backup after successful restore (unless --keep-backup)
+      if (!options.keepBackup && result.restored.length > 0 && result.errors.length === 0) {
+        await fs.remove(backupPath);
+        result.backupRemoved = true;
+      }
+
+      result.success = result.restored.length > 0;
+      result.message = `Restored ${result.restored.length} items from backup`;
+    } catch (error) {
+      result.success = false;
+      result.errors.push(error.message);
+    }
+
+    return result;
+  }
+
   generateMigrationReadme(scopeId, fileCount) {
     return `# Scope: ${scopeId}
 
@@ -349,100 +466,6 @@ bmad workflow --scope ${scopeId}
 bmad scope info ${scopeId}
 \`\`\`
 `;
-  }
-
-  /**
-   * Rollback migration using backup
-   * @param {string} backupPath - Path to backup directory
-   * @returns {Promise<boolean>} Success status
-   */
-  async rollback(backupPath) {
-    try {
-      if (!(await fs.pathExists(backupPath))) {
-        throw new Error(`Backup not found at: ${backupPath}`);
-      }
-
-      // Restore backed up directories
-      // Wrap fs.readdir in try-catch for defensive error handling
-      let entries;
-      try {
-        entries = await fs.readdir(backupPath, { withFileTypes: true });
-      } catch (readError) {
-        throw new Error(`Failed to read backup directory: ${readError.message}`, { cause: readError });
-      }
-
-      for (const entry of entries) {
-        const sourcePath = path.join(backupPath, entry.name);
-        const targetPath = path.join(this.outputPath, entry.name);
-
-        // Remove current version if exists
-        if (await fs.pathExists(targetPath)) {
-          await fs.remove(targetPath);
-        }
-
-        // Restore from backup
-        await fs.copy(sourcePath, targetPath);
-      }
-
-      // Remove backup after successful restore
-      await fs.remove(backupPath);
-
-      return true;
-    } catch (error) {
-      throw new Error(`Failed to rollback: ${error.message}`, { cause: error });
-    }
-  }
-
-  /**
-   * Update references in state files after migration
-   * @param {string} scopeId - The scope ID
-   * @returns {Promise<object>} Update result
-   */
-  async updateReferences(scopeId) {
-    const result = { updated: [], errors: [] };
-
-    const scopePath = path.join(this.outputPath, scopeId);
-
-    // Files that might contain path references
-    const filesToUpdate = [
-      path.join(scopePath, 'implementation-artifacts', 'sprint-status.yaml'),
-      path.join(scopePath, 'planning-artifacts', 'bmm-workflow-status.yaml'),
-    ];
-
-    for (const filePath of filesToUpdate) {
-      if (await fs.pathExists(filePath)) {
-        try {
-          let content = await fs.readFile(filePath, 'utf8');
-
-          // Update common path patterns
-          const patterns = [
-            { from: /planning-artifacts\//g, to: `${scopeId}/planning-artifacts/` },
-            { from: /implementation-artifacts\//g, to: `${scopeId}/implementation-artifacts/` },
-            { from: /tests\//g, to: `${scopeId}/tests/` },
-          ];
-
-          let modified = false;
-          for (const pattern of patterns) {
-            if (
-              pattern.from.test(content) && // Only update if not already scoped
-              !content.includes(`${scopeId}/`)
-            ) {
-              content = content.replace(pattern.from, pattern.to);
-              modified = true;
-            }
-          }
-
-          if (modified) {
-            await fs.writeFile(filePath, content, 'utf8');
-            result.updated.push(filePath);
-          }
-        } catch (error) {
-          result.errors.push(`Failed to update ${filePath}: ${error.message}`);
-        }
-      }
-    }
-
-    return result;
   }
 }
 

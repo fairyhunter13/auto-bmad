@@ -1,5 +1,3 @@
-const yaml = require('yaml');
-
 /**
  * Validates scope configuration and enforces schema rules
  * @class ScopeValidator
@@ -254,30 +252,6 @@ class ScopeValidator {
       valid: errors.length === 0,
       errors,
     };
-  }
-
-  /**
-   * Validates scopes.yaml file content
-   * @param {string} yamlContent - The YAML file content as string
-   * @returns {{valid: boolean, errors: string[], config: object|null}}
-   */
-  validateYamlContent(yamlContent) {
-    try {
-      const config = yaml.parse(yamlContent);
-      const validation = this.validateConfig(config);
-
-      return {
-        valid: validation.valid,
-        errors: validation.errors,
-        config: validation.valid ? config : null,
-      };
-    } catch (error) {
-      return {
-        valid: false,
-        errors: [`Failed to parse YAML: ${error.message}`],
-        config: null,
-      };
-    }
   }
 
   /**

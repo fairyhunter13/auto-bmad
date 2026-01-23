@@ -1,36 +1,5 @@
 # Test Healing Patterns
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The test healing principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] flaky test debugging [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] selector failure healing [CURRENT_YEAR]"
-```
-
-**Common failure patterns (ALL frameworks):**
-| Failure Type | Diagnostic Signature | Healing Strategy |
-|--------------|---------------------|------------------|
-| Stale Selector | "element not found", "0 elements" | Replace with data-testid/ARIA |
-| Race Condition | "timeout waiting", "not visible" | Network-first interception |
-| Dynamic Data | "expected X but got Y" (with IDs) | Use regex patterns, capture values |
-| Network Error | "API failed", "500 error" | Mock API responses |
-| Hard Wait | `sleep()`, `wait(ms)` in code | Event-based waits |
-
-**Framework-specific hard wait anti-patterns:**
-| Framework | Bad Pattern | Good Pattern |
-|-----------|-------------|--------------|
-| Playwright | `page.waitForTimeout(ms)` | `page.waitForResponse()` |
-| Cypress | `cy.wait(ms)` | `cy.wait('@alias')` |
-| Selenium | `Thread.sleep(ms)` | `WebDriverWait` explicit waits |
-| WebdriverIO | `browser.pause(ms)` | `browser.waitUntil()` |
-| Puppeteer | `page.waitForTimeout(ms)` | `page.waitForResponse()` |
-
 ## Principle
 
 Common test failures follow predictable patterns (stale selectors, race conditions, dynamic data assertions, network errors, hard waits). **Automated healing** identifies failure signatures and applies pattern-based fixes. Manual healing captures these patterns for future automation.

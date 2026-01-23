@@ -1,17 +1,15 @@
-# Non-Functional Requirements Assessment - Instructions v5.0 (Language Agnostic)
+# Non-Functional Requirements Assessment - Instructions v4.0
 
 **Workflow:** `testarch-nfr`
 **Purpose:** Assess non-functional requirements (performance, security, reliability, maintainability) before release with evidence-based validation
 **Agent:** Test Architect (TEA)
-**Format:** Pure Markdown v5.0 (Language Agnostic)
+**Format:** Pure Markdown v4.0 (no XML blocks)
 
 ---
 
 ## Overview
 
 This workflow performs a comprehensive assessment of non-functional requirements (NFRs) to validate that the implementation meets performance, security, reliability, and maintainability standards before release. It uses evidence-based validation with deterministic PASS/CONCERNS/FAIL rules and provides actionable recommendations for remediation.
-
-**Language Agnostic**: This workflow supports ANY programming language and technology stack. Tool recommendations and evidence sources adapt to the detected environment.
 
 **Key Capabilities:**
 
@@ -22,53 +20,6 @@ This workflow performs a comprehensive assessment of non-functional requirements
 - Generate gate-ready YAML snippets for CI/CD integration
 - Provide quick wins and recommended actions for remediation
 - Create evidence checklists for gaps
-
----
-
-## Step 0: Detect Project Environment (MANDATORY)
-
-**CRITICAL**: Before assessing NFRs, you MUST detect the project's language and technology stack.
-
-### Actions
-
-1. **Detect Language and Technology Stack**
-
-   Scan project for:
-   - Primary language (JavaScript, Python, Go, Java, etc.)
-   - Frameworks (React, Django, Spring, Express, etc.)
-   - Database technologies (PostgreSQL, MongoDB, Redis, etc.)
-   - Deployment targets (Docker, Kubernetes, AWS, GCP, etc.)
-
-2. **Detect NFR Testing Tools in Project**
-
-   Check for existing NFR tools:
-   - **Performance**: k6, JMeter, Gatling, Locust, Artillery
-   - **Security**: OWASP ZAP, SonarQube, Snyk, Dependabot
-   - **Coverage**: Istanbul/NYC (JS), coverage.py (Python), go cover (Go), JaCoCo (Java)
-   - **Quality**: ESLint, SonarQube, CodeClimate, Prettier
-
-3. **Fetch Latest NFR Tool Landscape (MANDATORY)**
-
-   **CRITICAL**: Before recommending tools, fetch current options:
-
-   ```
-   Search: "[DETECTED_LANGUAGE] performance testing tools [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] security scanning tools [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] code coverage tools [CURRENT_YEAR]"
-   ```
-
-4. **Store Detection Results**
-
-   ```yaml
-   detected:
-     language: '[JavaScript|Python|Go|Java|Rust|C#|Ruby|PHP|Other]'
-     performance_tool: '[e.g., k6, JMeter, Locust]'
-     security_tool: '[e.g., Snyk, OWASP ZAP, SonarQube]'
-     coverage_tool: '[e.g., Istanbul, coverage.py, JaCoCo]'
-     quality_tool: '[e.g., ESLint, SonarQube, Pylint]'
-   ```
-
-**Halt Condition**: If technology stack cannot be determined, ask user: "What is the project's primary technology stack?"
 
 ---
 
@@ -99,34 +50,19 @@ This workflow performs a comprehensive assessment of non-functional requirements
 
 **Actions:**
 
-1. **Verify Step 0 Detection Complete**
+1. Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:
+   - `adr-quality-readiness-checklist.md` - 8-category 29-criteria NFR framework (testability, test data, scalability, DR, security, monitorability, QoS/QoE, deployability, ~450 lines)
+   - `ci-burn-in.md` - CI/CD burn-in patterns for reliability validation (10-iteration detection, sharding, selective execution, 678 lines, 4 examples)
+   - `test-quality.md` - Test quality expectations for maintainability (deterministic, isolated, explicit assertions, length/time limits, 658 lines, 5 examples)
+   - `playwright-config.md` - Performance configuration patterns: parallelization, timeout standards, artifact output (722 lines, 5 examples)
+   - `error-handling.md` - Reliability validation patterns: scoped exceptions, retry validation, telemetry logging, graceful degradation (736 lines, 4 examples)
 
-   Ensure language and technology stack detection from Step 0 is available:
-   - Detected language and frameworks
-   - NFR testing tools available/recommended
-   - Evidence sources for this stack
-
-2. **Load relevant knowledge fragments from `{project-root}/_bmad/bmm/testarch/tea-index.csv`:**
-
-   **Core NFR Patterns (universal principles):**
-   - `adr-quality-readiness-checklist.md` - 8-category 29-criteria NFR framework
-   - `ci-burn-in.md` - CI/CD burn-in patterns for reliability validation
-   - `test-quality.md` - Test quality expectations for maintainability
-   - `error-handling.md` - Reliability validation patterns
-
-   **Fetch framework-specific NFR patterns:**
-
-   ```
-   Search: "[DETECTED_LANGUAGE] performance testing best practices [CURRENT_YEAR]"
-   Search: "[DETECTED_LANGUAGE] security testing checklist [CURRENT_YEAR]"
-   ```
-
-3. **Read story file (if provided):**
+2. Read story file (if provided):
    - Extract NFR requirements
    - Identify specific thresholds or SLAs
    - Note any custom NFR categories
 
-4. **Read related BMad artifacts (if available):**
+3. Read related BMad artifacts (if available):
    - `tech-spec.md` - Technical NFR requirements and targets
    - `PRD.md` - Product-level NFR context (user expectations)
    - `test-design.md` - NFR test plan and priorities
@@ -168,37 +104,31 @@ This workflow performs a comprehensive assessment of non-functional requirements
 
 **Actions:**
 
-1. **For each NFR category, discover evidence sources** (language-agnostic):
+1. For each NFR category, discover evidence sources:
 
    **Performance Evidence:**
-   - Load test results from detected tool (k6, JMeter, Gatling, Locust, Artillery)
+   - Load test results (JMeter, k6, Lighthouse)
    - Application metrics (response times, throughput, resource usage)
-   - Performance monitoring data (New Relic, Datadog, APM, CloudWatch)
-   - E2E framework traces (if applicable)
+   - Performance monitoring data (New Relic, Datadog, APM)
+   - Playwright performance traces (if applicable)
 
    **Security Evidence:**
    - Security scan results (SAST, DAST, dependency scanning)
-   - Tool-specific reports (Snyk, SonarQube, OWASP ZAP, Dependabot)
    - Authentication/authorization test results
    - Penetration test reports
    - Vulnerability assessment reports
+   - Compliance audit results
 
    **Reliability Evidence:**
    - Error logs and error rates
    - Uptime monitoring data
-   - Chaos engineering test results (Chaos Monkey, Gremlin)
+   - Chaos engineering test results
    - Failover/recovery test results
    - CI burn-in results (stability over time)
 
    **Maintainability Evidence:**
-   - Code coverage reports (language-specific tool):
-     - **JavaScript**: Istanbul, NYC, c8
-     - **Python**: coverage.py
-     - **Go**: go cover
-     - **Java**: JaCoCo
-     - **Rust**: cargo-tarpaulin
-     - **C#**: coverlet
-   - Static analysis results (language-specific linter + SonarQube)
+   - Code coverage reports (Istanbul, NYC, c8)
+   - Static analysis results (ESLint, SonarQube)
    - Technical debt metrics
    - Documentation completeness
    - Test quality assessment (from test-review workflow)

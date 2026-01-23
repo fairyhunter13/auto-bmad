@@ -1,34 +1,5 @@
 # Network Recorder Utility
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL test frameworks that support network recording.**
-
-The HAR recording/playback principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] HAR recording playback [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] network traffic mocking [CURRENT_YEAR]"
-```
-
-**Framework-specific HAR/network recording:**
-| Framework | Record | Playback | Notes |
-|-----------|--------|----------|-------|
-| Playwright | `routeFromHAR({ update: true })` | `routeFromHAR()` | Native HAR support |
-| Cypress | Third-party (cypress-har-generator) | `cy.intercept()` | Manual HAR parsing |
-| Selenium | BrowserMob Proxy | Custom replay | Proxy-based |
-| Puppeteer | CDP `Network.enable` | Custom `request.respond()` | Manual HAR handling |
-| WebdriverIO | `browser.mock()` record | `browser.mock()` replay | Built-in mocking |
-
-**Universal network recording principles (ALL frameworks):**
-
-- Record in development, playback in CI (offline testing)
-- Filter recordings to relevant API calls (exclude static assets)
-- Handle stateful CRUD operations (POST creates, GET reads)
-- Map URLs between environments (localhost → staging → production)
-
 ## Principle
 
 Record network traffic to HAR files during test execution, then play back from disk for offline testing. Enables frontend tests to run in complete isolation from backend services with intelligent stateful CRUD detection for realistic API behavior.
@@ -191,8 +162,8 @@ test.describe('Movie CRUD - offline with network recorder', () => {
 ```typescript
 await networkRecorder.setup(context, {
   recording: {
-    urlFilter: /\/api\//, // Only record API calls, ignore static assets
-  },
+    urlFilter: /\/api\// // Only record API calls, ignore static assets
+  }
 });
 ```
 
@@ -201,8 +172,8 @@ await networkRecorder.setup(context, {
 ```typescript
 await networkRecorder.setup(context, {
   playback: {
-    fallback: true, // Fall back to live requests if HAR entry missing
-  },
+    fallback: true // Fall back to live requests if HAR entry missing
+  }
 });
 ```
 
@@ -213,8 +184,8 @@ await networkRecorder.setup(context, {
   harFile: {
     harDir: 'recordings/api-calls',
     baseName: 'user-journey',
-    organizeByTestFile: false, // Optional: flatten directory structure
-  },
+    organizeByTestFile: false // Optional: flatten directory structure
+  }
 });
 ```
 
@@ -232,8 +203,8 @@ await networkRecorder.setup(context, {
 ```typescript
 await networkRecorder.setup(context, {
   recording: {
-    content: 'embed', // Store content inline (default)
-  },
+    content: 'embed' // Store content inline (default)
+  }
 });
 ```
 
@@ -253,8 +224,8 @@ await networkRecorder.setup(context, {
 ```typescript
 await networkRecorder.setup(context, {
   recording: {
-    content: 'attach', // Store content separately
-  },
+    content: 'attach' // Store content separately
+  }
 });
 ```
 
@@ -270,12 +241,12 @@ await networkRecorder.setup(context, {
 
 **When to Use Each:**
 
-| Use `embed` (default) when          | Use `attach` when               |
-| ----------------------------------- | ------------------------------- |
-| Recording API responses (JSON, XML) | Recording large images, videos  |
-| Small to medium HTML pages          | HAR file size >50MB             |
-| You want a single, portable file    | Maximum disk efficiency needed  |
-| Sharing HAR files with team         | Working with ZIP archive output |
+| Use `embed` (default) when | Use `attach` when |
+|---------------------------|-------------------|
+| Recording API responses (JSON, XML) | Recording large images, videos |
+| Small to medium HTML pages | HAR file size >50MB |
+| You want a single, portable file | Maximum disk efficiency needed |
+| Sharing HAR files with team | Working with ZIP archive output |
 
 ### Example 5: Cross-Environment Compatibility (URL Mapping)
 
@@ -292,10 +263,10 @@ await networkRecorder.setup(context, {
       hostMapping: {
         'preview.example.com': 'dev.example.com',
         'staging.example.com': 'dev.example.com',
-        'localhost:3000': 'dev.example.com',
-      },
-    },
-  },
+        'localhost:3000': 'dev.example.com'
+      }
+    }
+  }
 });
 ```
 
@@ -307,10 +278,10 @@ await networkRecorder.setup(context, {
     urlMapping: {
       patterns: [
         // Map any preview-XXXX subdomain to dev
-        { match: /preview-\d+\.example\.com/, replace: 'dev.example.com' },
-      ],
-    },
-  },
+        { match: /preview-\d+\.example\.com/, replace: 'dev.example.com' }
+      ]
+    }
+  }
 });
 ```
 
@@ -320,9 +291,9 @@ await networkRecorder.setup(context, {
 await networkRecorder.setup(context, {
   playback: {
     urlMapping: {
-      mapUrl: (url) => url.replace('staging.example.com', 'dev.example.com'),
-    },
-  },
+      mapUrl: (url) => url.replace('staging.example.com', 'dev.example.com')
+    }
+  }
 });
 ```
 
@@ -339,10 +310,10 @@ await networkRecorder.setup(context, {
       },
       patterns: [
         { match: /admin-\d+\.seondev\.space/, replace: 'admin.seondev.space' },
-        { match: /admin-staging-pr-\w+-\d\.seon\.io/, replace: 'admin.seondev.space' },
-      ],
-    },
-  },
+        { match: /admin-staging-pr-\w+-\d\.seon\.io/, replace: 'admin.seondev.space' }
+      ]
+    }
+  }
 });
 ```
 
@@ -388,13 +359,13 @@ It automatically switches from static HAR playback to an intelligent stateful mo
 
 ### NetworkRecorder Methods
 
-| Method               | Return Type              | Description                                   |
-| -------------------- | ------------------------ | --------------------------------------------- |
-| `setup(context)`     | `Promise<void>`          | Sets up recording/playback on browser context |
-| `cleanup()`          | `Promise<void>`          | Flushes data to disk and cleans up memory     |
-| `getContext()`       | `NetworkRecorderContext` | Gets current recorder context information     |
-| `getStatusMessage()` | `string`                 | Gets human-readable status message            |
-| `getHarStats()`      | `Promise<HarFileStats>`  | Gets HAR file statistics and metadata         |
+| Method               | Return Type              | Description                                           |
+| -------------------- | ------------------------ | ----------------------------------------------------- |
+| `setup(context)`     | `Promise<void>`          | Sets up recording/playback on browser context         |
+| `cleanup()`          | `Promise<void>`          | Flushes data to disk and cleans up memory             |
+| `getContext()`       | `NetworkRecorderContext` | Gets current recorder context information             |
+| `getStatusMessage()` | `string`                 | Gets human-readable status message                    |
+| `getHarStats()`      | `Promise<HarFileStats>`  | Gets HAR file statistics and metadata                 |
 
 ### Understanding `cleanup()`
 
@@ -418,25 +389,25 @@ The `cleanup()` method performs memory and resource cleanup - **it does NOT dele
 ```typescript
 type NetworkRecorderConfig = {
   harFile?: {
-    harDir?: string; // Directory for HAR files (default: 'har-files')
-    baseName?: string; // Base name for HAR files (default: 'network-traffic')
-    organizeByTestFile?: boolean; // Organize by test file (default: true)
-  };
+    harDir?: string // Directory for HAR files (default: 'har-files')
+    baseName?: string // Base name for HAR files (default: 'network-traffic')
+    organizeByTestFile?: boolean // Organize by test file (default: true)
+  }
 
   recording?: {
-    content?: 'embed' | 'attach'; // Response content handling (default: 'embed')
-    urlFilter?: string | RegExp; // URL filter for recording
-    update?: boolean; // Update existing HAR files (default: false)
-  };
+    content?: 'embed' | 'attach' // Response content handling (default: 'embed')
+    urlFilter?: string | RegExp // URL filter for recording
+    update?: boolean // Update existing HAR files (default: false)
+  }
 
   playback?: {
-    fallback?: boolean; // Fall back to live requests (default: false)
-    urlFilter?: string | RegExp; // URL filter for playback
-    updateMode?: boolean; // Update mode during playback (default: false)
-  };
+    fallback?: boolean // Fall back to live requests (default: false)
+    urlFilter?: string | RegExp // URL filter for playback
+    updateMode?: boolean // Update mode during playback (default: false)
+  }
 
-  forceMode?: 'record' | 'playback' | 'disabled';
-};
+  forceMode?: 'record' | 'playback' | 'disabled'
+}
 ```
 
 ## Environment Configuration

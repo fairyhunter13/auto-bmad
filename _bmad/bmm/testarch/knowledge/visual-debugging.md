@@ -1,35 +1,5 @@
 # Visual Debugging and Developer Ergonomics
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The visual debugging principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] debugging artifacts [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] trace viewer screenshot [CURRENT_YEAR]"
-```
-
-**Framework-specific debugging tools:**
-| Framework | Trace Viewer | Screenshot | Video | Network Capture |
-|-----------|-------------|------------|-------|-----------------|
-| Playwright | Trace Viewer | `screenshot: 'only-on-failure'` | `video: 'retain-on-failure'` | HAR files |
-| Cypress | Time-travel UI | Auto on failure | `video: true` | `cy.intercept()` logs |
-| Selenium | Third-party | `getScreenshotAs()` | Third-party | WebDriver logs |
-| WebdriverIO | Allure reports | `browser.saveScreenshot()` | `wdio-video-reporter` | Network logs |
-| TestCafe | Test reports | Auto on failure | `--video` flag | Request hooks |
-| Puppeteer | DevTools Protocol | `page.screenshot()` | `screencast` | HAR via CDP |
-
-**Universal debugging principles (ALL frameworks):**
-
-- Capture traces/screenshots only on failure (saves storage)
-- Upload artifacts to CI for post-mortem analysis
-- Use network capture (HAR) for API debugging
-- Enable step-through debugging during development
-
 ## Principle
 
 Fast feedback loops and transparent debugging artifacts are critical for maintaining test reliability and developer confidence. Visual debugging tools (trace viewers, screenshots, videos, HAR files) turn cryptic test failures into actionable insights, reducing triage time from hours to minutes.

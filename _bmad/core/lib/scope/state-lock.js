@@ -1,6 +1,4 @@
-const path = require('node:path');
 const fs = require('fs-extra');
-const yaml = require('yaml');
 
 /**
  * File locking utilities for safe concurrent access to state files
@@ -8,7 +6,6 @@ const yaml = require('yaml');
  *
  * @class StateLock
  * @requires fs-extra
- * @requires yaml
  *
  * @example
  * const lock = new StateLock();
@@ -145,189 +142,12 @@ class StateLock {
   }
 
   /**
-   * Read YAML file with version tracking
-   * @param {string} filePath - Path to YAML file
-   * @returns {Promise<object>} Parsed content with _version
-   */
-  async readYaml(filePath) {
-    try {
-      const content = await fs.readFile(filePath, 'utf8');
-      // Guard against null/undefined from yaml.parse (empty YAML files)
-      const data = yaml.parse(content) || {};
-
-      // Ensure version field exists
-      if (!data._version) {
-        data._version = 0;
-      }
-
-      return data;
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return { _version: 0 };
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Write YAML file with version increment
-   * @param {string} filePath - Path to YAML file
-   * @param {object} data - Data to write
-   * @returns {Promise<object>} Written data with new version
-   */
-  async writeYaml(filePath, data) {
-    // Ensure directory exists
-    await fs.ensureDir(path.dirname(filePath));
-
-    // Update version and timestamp
-    const versionedData = {
-      ...data,
-      _version: (data._version || 0) + 1,
-      _lastModified: new Date().toISOString(),
-    };
-
-    const yamlContent = yaml.stringify(versionedData, { indent: 2 });
-    await fs.writeFile(filePath, yamlContent, 'utf8');
-
-    return versionedData;
-  }
-
-  /**
-   * Update YAML file with automatic version management and locking
-   * @param {string} filePath - Path to YAML file
-   * @param {function} modifier - Function that receives data and returns modified data
-   * @returns {Promise<object>} Updated data
-   */
-  async updateYamlWithVersion(filePath, modifier) {
-    return this.withLock(filePath, async () => {
-      // Read current data
-      const data = await this.readYaml(filePath);
-
-      // Apply modifications
-      const modified = await modifier(data);
-
-      // Write back - writeYaml handles version increment
-      const result = await this.writeYaml(filePath, modified);
-
-      return result;
-    });
-  }
-
-  /**
-   * Optimistic update with version check
-   * @param {string} filePath - Path to YAML file
-   * @param {number} expectedVersion - Expected version number
-   * @param {object} newData - New data to write
-   * @returns {Promise<{success: boolean, data: object, conflict: boolean}>}
-   */
-  async optimisticUpdate(filePath, expectedVersion, newData) {
-    return this.withLock(filePath, async () => {
-      const current = await this.readYaml(filePath);
-
-      // Check version
-      if (current._version !== expectedVersion) {
-        return {
-          success: false,
-          data: current,
-          conflict: true,
-          message: `Version conflict: expected ${expectedVersion}, found ${current._version}`,
-        };
-      }
-
-      // Update with new version
-      const updated = {
-        ...newData,
-        _version: expectedVersion + 1,
-        _lastModified: new Date().toISOString(),
-      };
-
-      await this.writeYaml(filePath, updated);
-
-      return {
-        success: true,
-        data: updated,
-        conflict: false,
-      };
-    });
-  }
-
-  /**
    * Sleep helper
    * @param {number} ms - Milliseconds to sleep
    * @returns {Promise<void>}
    */
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Check if a file is currently locked
-   * @param {string} filePath - The file to check
-   * @returns {Promise<boolean>} True if locked
-   */
-  async isLocked(filePath) {
-    const lockPath = this.getLockPath(filePath);
-
-    try {
-      const exists = await fs.pathExists(lockPath);
-
-      if (!exists) {
-        return false;
-      }
-
-      // Check if lock is stale
-      const isStale = await this.isLockStale(lockPath);
-      return !isStale;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Get lock information
-   * @param {string} filePath - The file to check
-   * @returns {Promise<object|null>} Lock info or null
-   */
-  async getLockInfo(filePath) {
-    const lockPath = this.getLockPath(filePath);
-
-    try {
-      const exists = await fs.pathExists(lockPath);
-
-      if (!exists) {
-        return null;
-      }
-
-      const content = await fs.readFile(lockPath, 'utf8');
-      const info = JSON.parse(content);
-      const stat = await fs.stat(lockPath);
-      // Ensure age is never negative due to timing issues
-      const age = Math.max(0, Date.now() - stat.mtimeMs);
-
-      return {
-        ...info,
-        age,
-        isStale: age > this.staleTimeout,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Force release a lock (use with caution)
-   * @param {string} filePath - The file to unlock
-   * @returns {Promise<boolean>} True if lock was removed
-   */
-  async forceRelease(filePath) {
-    const lockPath = this.getLockPath(filePath);
-
-    try {
-      await fs.remove(lockPath);
-      return true;
-    } catch {
-      return false;
-    }
   }
 }
 

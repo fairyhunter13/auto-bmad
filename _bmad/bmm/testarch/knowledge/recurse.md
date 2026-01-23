@@ -1,36 +1,5 @@
 # Recurse (Polling) Utility
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL test frameworks that require polling/retry patterns.**
-
-The polling and retry principles below are universal. Code examples use TypeScript/Playwright as reference implementations.
-
-**Before generating code for other frameworks, fetch current patterns:**
-
-```
-Search: "[YOUR_FRAMEWORK] polling async wait [CURRENT_YEAR]"
-Search: "[YOUR_FRAMEWORK] retry until condition [CURRENT_YEAR]"
-```
-
-**Framework-specific polling/retry utilities:**
-| Framework | Native Polling | Third-Party | Custom Pattern |
-|-----------|---------------|-------------|----------------|
-| Playwright | `expect.poll()` | - | `while + await` |
-| Cypress | `cy.get().should()` | `cypress-recurse` | Recursive commands |
-| Jest | - | `wait-for-expect` | `async/await` loop |
-| pytest | - | `tenacity`, `retry` | `while` loop |
-| RSpec | - | `rspec-wait` | Custom matcher |
-| JUnit | - | Awaitility | `while` loop |
-| Go test | - | `testify/assert.Eventually` | `time.Tick` loop |
-
-**Universal polling principles (ALL frameworks):**
-
-- Set explicit timeouts (don't poll forever)
-- Use exponential backoff for external services
-- Log polling progress for debugging
-- Distinguish timeout vs. condition failure
-
 ## Principle
 
 Use Cypress-style polling with Playwright's `expect.poll` to wait for asynchronous conditions. Provides configurable timeout, interval, logging, and post-polling callbacks with enhanced error categorization. **Ideal for backend testing**: polling API endpoints for job completion, database eventual consistency, message queue processing, and cache propagation.
@@ -68,7 +37,7 @@ test('wait for job completion', async ({ recurse, apiRequest }) => {
   const result = await recurse(
     () => apiRequest({ method: 'GET', path: `/api/jobs/${body.id}` }),
     (response) => response.body.status === 'completed',
-    { timeout: 60000 },
+    { timeout: 60000 }
   );
 
   expect(result.body.downloadUrl).toBeDefined();
@@ -102,7 +71,7 @@ test('should wait for job completion', async ({ recurse, apiRequest }) => {
       timeout: 60000, // 60 seconds max
       interval: 2000, // Check every 2 seconds
       log: 'Waiting for export job to complete',
-    },
+    }
   );
 
   expect(result.body.downloadUrl).toBeDefined();
@@ -142,7 +111,7 @@ test('should poll with assertions', async ({ recurse, apiRequest }) => {
       expect(event.timestamp).toBeDefined();
       // No need to return true - just let assertions pass
     },
-    { timeout: 30000 },
+    { timeout: 30000 }
   );
 });
 ```
@@ -210,7 +179,7 @@ test('custom error on timeout', async ({ recurse, apiRequest }) => {
       {
         timeout: 10000,
         error: 'System failed to become ready within 10 seconds - check background workers',
-      },
+      }
     );
   } catch (error) {
     // Error message includes custom context
@@ -239,7 +208,7 @@ test('post-poll processing', async ({ recurse, apiRequest }) => {
         console.log(`Processed ${result.body.itemsProcessed} items`);
         return result.body;
       },
-    },
+    }
   );
 
   expect(finalResult.itemsProcessed).toBeGreaterThan(0);
@@ -271,7 +240,7 @@ test('table data loads', async ({ page, recurse }) => {
       timeout: 15000,
       interval: 500,
       log: 'Waiting for table data to load',
-    },
+    }
   );
 
   // Now safe to interact with table
@@ -306,7 +275,7 @@ test('kafka event processed', async ({ recurse, apiRequest }) => {
       timeout: 30000, // Kafka processing may take time
       interval: 1000,
       log: 'Waiting for Kafka event to be processed',
-    },
+    }
   );
 
   expect(inventoryResult.body.lastOrderId).toBeDefined();
@@ -341,7 +310,7 @@ test('end-to-end polling', async ({ apiRequest, recurse }) => {
       timeout: 120000, // 2 minutes for large imports
       interval: 5000, // Check every 5 seconds
       log: `Polling import ${createResp.importId}`,
-    },
+    }
   );
 
   expect(importResult.body.rowsImported).toBeGreaterThan(1000);
@@ -427,7 +396,7 @@ await page.click('#export');
 await recurse(
   () => page.textContent('#status'),
   (status) => status === 'Ready',
-  { timeout: 10000 },
+  { timeout: 10000 }
 );
 ```
 
@@ -437,7 +406,7 @@ await recurse(
 await recurse(
   () => apiRequest({ method: 'GET', path: '/status' }),
   (res) => res.body.ready,
-  { interval: 100 }, // Hammers API every 100ms!
+  { interval: 100 } // Hammers API every 100ms!
 );
 ```
 
@@ -447,6 +416,6 @@ await recurse(
 await recurse(
   () => apiRequest({ method: 'GET', path: '/status' }),
   (res) => res.body.ready,
-  { interval: 2000 }, // Check every 2 seconds (reasonable)
+  { interval: 2000 } // Check every 2 seconds (reasonable)
 );
 ```

@@ -2,22 +2,6 @@
 
 # Test Levels Framework
 
-## Language Agnostic
-
-**This knowledge fragment applies to ALL programming languages and test frameworks.**
-
-The test level decision matrix (Unit vs Integration vs E2E) is universal. Apply these principles regardless of your technology stack.
-
-**Before implementing tests, fetch framework-specific guidance:**
-
-```
-Search: "[YOUR_LANGUAGE] unit testing best practices [CURRENT_YEAR]"
-Search: "[YOUR_LANGUAGE] integration testing patterns [CURRENT_YEAR]"
-Search: "[YOUR_E2E_FRAMEWORK] end-to-end testing [CURRENT_YEAR]"
-```
-
----
-
 Comprehensive guide for determining appropriate test levels (unit, integration, E2E) for different scenarios.
 
 ## Test Level Decision Matrix
