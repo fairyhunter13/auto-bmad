@@ -171,8 +171,6 @@ describe('SettingsScreen', () => {
   })
 
   it('displays error message when settings fail to save', async () => {
-    const user = userEvent.setup()
-    
     // Mock set to fail
     vi.spyOn(window.api.settings, 'set').mockRejectedValue(new Error('Save failed'))
 
@@ -183,8 +181,9 @@ describe('SettingsScreen', () => {
     })
 
     const maxRetriesInput = screen.getByLabelText('Maximum Retries')
-    await user.clear(maxRetriesInput)
-    await user.type(maxRetriesInput, '7')
+    
+    // Use fireEvent.change to atomically set the value to avoid intermediate states
+    fireEvent.change(maxRetriesInput, { target: { value: '7' } })
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to save settings/)).toBeInTheDocument()
