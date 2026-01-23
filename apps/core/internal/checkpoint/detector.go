@@ -70,6 +70,48 @@ func isGitCompatible(version, minVersion string) bool {
 	return compareVersions(version, minVersion) >= 0
 }
 
+// GitRepoStatus represents the status of a Git repository.
+type GitRepoStatus struct {
+	IsGitRepo  bool   `json:"isGitRepo"`
+	Branch     string `json:"branch,omitempty"`
+	HasChanges bool   `json:"hasChanges"`
+	Error      string `json:"error,omitempty"`
+}
+
+// GetRepoStatus returns the Git status for a given directory path.
+func GetRepoStatus(path string) *GitRepoStatus {
+	result := &GitRepoStatus{}
+
+	// Check if .git directory exists
+	cmd := exec.Command("git", "-C", path, "rev-parse", "--git-dir")
+	if err := cmd.Run(); err != nil {
+		// Not a git repository
+		result.IsGitRepo = false
+		return result
+	}
+	result.IsGitRepo = true
+
+	// Get current branch
+	branchCmd := exec.Command("git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD")
+	branchOutput, err := branchCmd.Output()
+	if err != nil {
+		result.Error = "Failed to get branch name"
+	} else {
+		result.Branch = strings.TrimSpace(string(branchOutput))
+	}
+
+	// Check for uncommitted changes
+	statusCmd := exec.Command("git", "-C", path, "status", "--porcelain")
+	statusOutput, err := statusCmd.Output()
+	if err != nil {
+		result.Error = "Failed to get status"
+	} else {
+		result.HasChanges = len(strings.TrimSpace(string(statusOutput))) > 0
+	}
+
+	return result
+}
+
 // compareVersions compares two semantic versions.
 // Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
 func compareVersions(v1, v2 string) int {

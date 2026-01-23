@@ -152,6 +152,19 @@ const api = {
   },
 
   /**
+   * Git methods for repository operations
+   */
+  git: {
+    /** Get Git repository status for a given path */
+    getRepoStatus: (path: string): Promise<{
+      isGitRepo: boolean
+      branch?: string
+      hasChanges: boolean
+      error?: string
+    }> => ipcRenderer.invoke('rpc:call', 'git.getRepoStatus', { path })
+  },
+
+  /**
    * Settings methods for user preferences
    */
   settings: {

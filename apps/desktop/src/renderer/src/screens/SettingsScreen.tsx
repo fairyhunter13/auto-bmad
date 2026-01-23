@@ -8,7 +8,7 @@
  * - UI preferences (theme, debug output)
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,11 +16,45 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../types/settings'
 
+/** Displays field-level error message */
+function FieldError({ error }: { error?: string }): JSX.Element | null {
+  if (!error) return null
+  return (
+    <p className="text-sm text-destructive mt-1" role="alert">
+      {error}
+    </p>
+  )
+}
+
+/** Debounce delay for settings save (ms) */
+const DEBOUNCE_DELAY = 300
+
 export function SettingsScreen(): JSX.Element {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [pendingChanges, setPendingChanges] = useState<Partial<Settings>>({})
+  
+  // Ref for debounce timeout
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ref to access latest pendingChanges in timeout callback
+  const pendingChangesRef = useRef<Partial<Settings>>({})
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    pendingChangesRef.current = pendingChanges
+  }, [pendingChanges])
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Load settings on mount
   useEffect(() => {
@@ -41,30 +75,65 @@ export function SettingsScreen(): JSX.Element {
     }
   }
 
-  const handleChange = async <K extends keyof Settings>(
+  const handleChange = useCallback(<K extends keyof Settings>(
     key: K,
     value: Settings[K]
-  ): Promise<void> => {
+  ): void => {
     if (!settings) return
 
-    setSaving(true)
-    setError(null)
-    try {
-      const updated = await window.api.settings.set({ [key]: value })
-      setSettings(updated as Settings)
-    } catch (err) {
-      console.error('Failed to save settings:', err)
-      setError('Failed to save settings. Please try again.')
-    } finally {
-      setSaving(false)
+    // Update local state immediately (optimistic UI)
+    setSettings(prev => prev ? { ...prev, [key]: value } : null)
+    
+    // Queue the change
+    setPendingChanges(prev => ({ ...prev, [key]: value }))
+    
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
     }
-  }
+    
+    // Debounce the save
+    saveTimeoutRef.current = setTimeout(async () => {
+      const changes = pendingChangesRef.current
+      if (Object.keys(changes).length === 0) return
+      
+      setSaving(true)
+      setError(null)
+      try {
+        const updated = await window.api.settings.set(changes)
+        setSettings(updated as Settings)
+        // Clear field errors for successfully saved fields
+        setFieldErrors(prev => {
+          const newErrors = { ...prev }
+          for (const k of Object.keys(changes)) {
+            newErrors[k] = ''
+          }
+          return newErrors
+        })
+        setPendingChanges({})
+      } catch (err) {
+        console.error('Failed to save settings:', err)
+        const errorMessage = err instanceof Error ? err.message : 'Invalid value'
+        // Set error for all pending fields
+        setFieldErrors(prev => {
+          const newErrors = { ...prev }
+          for (const k of Object.keys(changes)) {
+            newErrors[k] = errorMessage
+          }
+          return newErrors
+        })
+      } finally {
+        setSaving(false)
+      }
+    }, DEBOUNCE_DELAY)
+  }, [settings])
 
   const handleReset = async (): Promise<void> => {
     if (!confirm('Reset all settings to defaults?')) return
 
     setSaving(true)
     setError(null)
+    setFieldErrors({}) // Clear all field errors on reset
     try {
       const defaults = await window.api.settings.reset()
       setSettings(defaults as Settings)
@@ -131,10 +200,12 @@ export function SettingsScreen(): JSX.Element {
                 disabled={saving}
                 min="0"
                 max="10"
+                aria-invalid={!!fieldErrors.maxRetries}
               />
               <p className="text-sm text-muted-foreground">
                 Number of times to retry failed steps (0-10)
               </p>
+              <FieldError error={fieldErrors.maxRetries} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="retryDelay">Retry Delay (ms)</Label>
@@ -148,10 +219,12 @@ export function SettingsScreen(): JSX.Element {
                 disabled={saving}
                 min="0"
                 step="1000"
+                aria-invalid={!!fieldErrors.retryDelay}
               />
               <p className="text-sm text-muted-foreground">
                 Time to wait before retrying (in milliseconds)
               </p>
+              <FieldError error={fieldErrors.retryDelay} />
             </div>
           </CardContent>
         </Card>
@@ -168,12 +241,14 @@ export function SettingsScreen(): JSX.Element {
                 <p className="text-sm text-muted-foreground">
                   Show system notifications for important events
                 </p>
+                <FieldError error={fieldErrors.desktopNotifications} />
               </div>
               <Switch
                 id="desktopNotifications"
                 checked={settings.desktopNotifications}
                 onCheckedChange={(v) => handleChange('desktopNotifications', v)}
                 disabled={saving}
+                aria-invalid={!!fieldErrors.desktopNotifications}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -182,12 +257,14 @@ export function SettingsScreen(): JSX.Element {
                 <p className="text-sm text-muted-foreground">
                   Play sounds for notifications
                 </p>
+                <FieldError error={fieldErrors.soundEnabled} />
               </div>
               <Switch
                 id="soundEnabled"
                 checked={settings.soundEnabled}
                 onCheckedChange={(v) => handleChange('soundEnabled', v)}
                 disabled={saving}
+                aria-invalid={!!fieldErrors.soundEnabled}
               />
             </div>
           </CardContent>
@@ -211,10 +288,12 @@ export function SettingsScreen(): JSX.Element {
                 disabled={saving}
                 min="0"
                 step="60000"
+                aria-invalid={!!fieldErrors.stepTimeoutDefault}
               />
               <p className="text-sm text-muted-foreground">
                 Maximum time to wait for a step to complete (5 minutes = 300000)
               </p>
+              <FieldError error={fieldErrors.stepTimeoutDefault} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="heartbeatInterval">Heartbeat Interval (ms)</Label>
@@ -228,10 +307,12 @@ export function SettingsScreen(): JSX.Element {
                 disabled={saving}
                 min="0"
                 step="30000"
+                aria-invalid={!!fieldErrors.heartbeatInterval}
               />
               <p className="text-sm text-muted-foreground">
                 How often to check for progress updates (60 seconds = 60000)
               </p>
+              <FieldError error={fieldErrors.heartbeatInterval} />
             </div>
           </CardContent>
         </Card>
@@ -252,6 +333,7 @@ export function SettingsScreen(): JSX.Element {
                 }
                 disabled={saving}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-invalid={!!fieldErrors.theme}
               >
                 <option value="system">System</option>
                 <option value="light">Light</option>
@@ -260,6 +342,7 @@ export function SettingsScreen(): JSX.Element {
               <p className="text-sm text-muted-foreground">
                 Choose your preferred color theme
               </p>
+              <FieldError error={fieldErrors.theme} />
             </div>
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -267,12 +350,14 @@ export function SettingsScreen(): JSX.Element {
                 <p className="text-sm text-muted-foreground">
                   Display detailed technical information
                 </p>
+                <FieldError error={fieldErrors.showDebugOutput} />
               </div>
               <Switch
                 id="showDebugOutput"
                 checked={settings.showDebugOutput}
                 onCheckedChange={(v) => handleChange('showDebugOutput', v)}
                 disabled={saving}
+                aria-invalid={!!fieldErrors.showDebugOutput}
               />
             </div>
           </CardContent>

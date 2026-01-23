@@ -197,13 +197,16 @@ func (sm *StateManager) Set(updates map[string]interface{}) error {
 			sm.settings.RecentProjectsMax = toInt(value)
 		case "projectProfiles":
 			if v, ok := value.(map[string]interface{}); ok {
-				profiles := make(map[string]string)
+				// Merge entries instead of replacing the whole map
+				// This allows different projects to have different profiles
+				if sm.settings.ProjectProfiles == nil {
+					sm.settings.ProjectProfiles = make(map[string]string)
+				}
 				for k, pv := range v {
 					if s, ok := pv.(string); ok {
-						profiles[k] = s
+						sm.settings.ProjectProfiles[k] = s
 					}
 				}
-				sm.settings.ProjectProfiles = profiles
 			}
 		}
 	}

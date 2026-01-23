@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -662,5 +663,125 @@ func TestStateManagerValidation_MultipleFields(t *testing.T) {
 	}
 	if settings.Theme != "dark" {
 		t.Errorf("Theme changed despite validation failure: got %q, want \"dark\"", settings.Theme)
+	}
+}
+
+// TestStateManagerProjectProfiles_Merge verifies that projectProfiles merges entries
+// instead of replacing the entire map. This supports different projects having different profiles.
+func TestStateManagerProjectProfiles_Merge(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	// Set first project profile
+	err = sm.Set(map[string]interface{}{
+		"projectProfiles": map[string]interface{}{
+			"/project1": "claude-sonnet",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Set() for project1 failed: %v", err)
+	}
+
+	// Set second project profile (should merge, not replace)
+	err = sm.Set(map[string]interface{}{
+		"projectProfiles": map[string]interface{}{
+			"/project2": "gpt-4",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Set() for project2 failed: %v", err)
+	}
+
+	// Verify both profiles exist
+	settings := sm.Get()
+	if settings.ProjectProfiles["/project1"] != "claude-sonnet" {
+		t.Errorf("Project1 profile lost after adding project2: got %q, want \"claude-sonnet\"",
+			settings.ProjectProfiles["/project1"])
+	}
+	if settings.ProjectProfiles["/project2"] != "gpt-4" {
+		t.Errorf("Project2 profile not saved: got %q, want \"gpt-4\"",
+			settings.ProjectProfiles["/project2"])
+	}
+
+	// Update first project profile
+	err = sm.Set(map[string]interface{}{
+		"projectProfiles": map[string]interface{}{
+			"/project1": "claude-opus",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Set() for project1 update failed: %v", err)
+	}
+
+	// Verify update worked and project2 is still there
+	settings = sm.Get()
+	if settings.ProjectProfiles["/project1"] != "claude-opus" {
+		t.Errorf("Project1 profile not updated: got %q, want \"claude-opus\"",
+			settings.ProjectProfiles["/project1"])
+	}
+	if settings.ProjectProfiles["/project2"] != "gpt-4" {
+		t.Errorf("Project2 profile lost after updating project1: got %q, want \"gpt-4\"",
+			settings.ProjectProfiles["/project2"])
+	}
+
+	// Verify persistence after restart
+	sm2, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() on restart failed: %v", err)
+	}
+
+	restored := sm2.Get()
+	if restored.ProjectProfiles["/project1"] != "claude-opus" {
+		t.Errorf("Project1 profile not persisted: got %q, want \"claude-opus\"",
+			restored.ProjectProfiles["/project1"])
+	}
+	if restored.ProjectProfiles["/project2"] != "gpt-4" {
+		t.Errorf("Project2 profile not persisted: got %q, want \"gpt-4\"",
+			restored.ProjectProfiles["/project2"])
+	}
+}
+
+// TestStateManagerConcurrency validates thread safety under concurrent load.
+// Launches 20+ goroutines (10 writers, 10 readers) to verify mutex protection.
+func TestStateManagerConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+	sm, err := NewStateManager(projectPath)
+	if err != nil {
+		t.Fatalf("NewStateManager() failed: %v", err)
+	}
+
+	var wg sync.WaitGroup
+
+	// Launch 10 writer goroutines
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(val int) {
+			defer wg.Done()
+			// Use valid values (0-10 per validation)
+			_ = sm.Set(map[string]interface{}{"maxRetries": val % 11})
+		}(i)
+	}
+
+	// Launch 10 reader goroutines
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = sm.Get()
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify no corruption
+	settings := sm.Get()
+	if settings.MaxRetries < 0 || settings.MaxRetries > 10 {
+		t.Errorf("Concurrent access corrupted settings: maxRetries = %d", settings.MaxRetries)
 	}
 }

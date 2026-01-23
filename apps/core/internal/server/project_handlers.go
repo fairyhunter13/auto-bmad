@@ -16,6 +16,8 @@ func RegisterProjectHandlers(s *Server) {
 	s.RegisterHandler("project.addRecent", handleAddRecent)
 	s.RegisterHandler("project.removeRecent", handleRemoveRecent)
 	s.RegisterHandler("project.setContext", handleSetContext)
+	s.RegisterHandler("project.getLastProfile", handleGetLastProfile)
+	s.RegisterHandler("project.setLastProfile", handleSetLastProfile)
 }
 
 // handleDetectDependencies detects and validates system dependencies.
@@ -164,4 +166,69 @@ func handleSetContext(params json.RawMessage) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+// GetLastProfileParams represents the parameters for project.getLastProfile
+type GetLastProfileParams struct {
+	Path string `json:"path"`
+}
+
+// handleGetLastProfile returns the last-used profile for a project path.
+// Method: project.getLastProfile
+// Params: { "path": string }
+// Result: { "profile": string }
+func handleGetLastProfile(params json.RawMessage) (interface{}, error) {
+	var p GetLastProfileParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", err.Error())
+	}
+
+	if p.Path == "" {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
+	}
+
+	// settingsManager is initialized by RegisterSettingsHandlers
+	if settingsManager == nil {
+		return nil, NewErrorWithData(ErrCodeInternalError, "Settings manager not initialized", "")
+	}
+
+	settings := settingsManager.Get()
+	profile := settings.ProjectProfiles[p.Path]
+
+	return map[string]string{"profile": profile}, nil
+}
+
+// SetLastProfileParams represents the parameters for project.setLastProfile
+type SetLastProfileParams struct {
+	Path    string `json:"path"`
+	Profile string `json:"profile"`
+}
+
+// handleSetLastProfile saves the last-used profile for a project path.
+// Method: project.setLastProfile
+// Params: { "path": string, "profile": string }
+// Result: { "status": "ok" }
+func handleSetLastProfile(params json.RawMessage) (interface{}, error) {
+	var p SetLastProfileParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", err.Error())
+	}
+
+	if p.Path == "" {
+		return nil, NewErrorWithData(ErrCodeInvalidParams, "Invalid params", "path is required")
+	}
+
+	// settingsManager is initialized by RegisterSettingsHandlers
+	if settingsManager == nil {
+		return nil, NewErrorWithData(ErrCodeInternalError, "Settings manager not initialized", "")
+	}
+
+	err := settingsManager.Set(map[string]interface{}{
+		"projectProfiles": map[string]interface{}{p.Path: p.Profile},
+	})
+	if err != nil {
+		return nil, NewErrorWithData(ErrCodeInternalError, "Failed to save profile", err.Error())
+	}
+
+	return map[string]string{"status": "ok"}, nil
 }
